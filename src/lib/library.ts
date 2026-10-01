@@ -12,7 +12,7 @@ const newId = () => crypto.randomUUID();
 
 export async function upsertShow(
   userId: string,
-  input: { title: string; year: string | null; folderUrl: string | null },
+  input: { title: string; year: string | null; folderUrl: string | null; sampleUrl?: string | null },
 ): Promise<{ show: Show; created: boolean }> {
   await ready();
   const titleKey = normalizeKey(input.title);
@@ -26,6 +26,12 @@ export async function upsertShow(
     const patch: Partial<Show> = {};
     if (!existing.folderUrl && input.folderUrl) patch.folderUrl = input.folderUrl;
     if (!existing.year && input.year) patch.year = input.year;
+    // Keep the most recent episode link as the naming template.
+    if (input.sampleUrl && input.sampleUrl !== existing.sampleUrl) patch.sampleUrl = input.sampleUrl;
+    if (!existing.posterUrl) {
+      const posterUrl = await findPoster("tv", existing.title, existing.year ?? input.year);
+      if (posterUrl) patch.posterUrl = posterUrl;
+    }
     if (Object.keys(patch).length) {
       await db.update(shows).set(patch).where(eq(shows.id, existing.id));
       return { show: { ...existing, ...patch }, created: false };
@@ -41,6 +47,7 @@ export async function upsertShow(
     titleKey,
     year: input.year,
     folderUrl: input.folderUrl,
+    sampleUrl: input.sampleUrl ?? null,
     posterUrl,
     status: "watching" as const,
     lastSeason: null,
@@ -103,7 +110,27 @@ async function deriveEpisodeUrl(showId: string, season: number, episode: number)
     const derived = rewriteEpisodeUrl(ref.url!, season, episode);
     if (derived) return derived;
   }
-  return null;
+  const show = await db.select({ sampleUrl: shows.sampleUrl }).from(shows).where(eq(shows.id, showId)).get();
+  return show?.sampleUrl ? rewriteEpisodeUrl(show.sampleUrl, season, episode) : null;
+}
+
+/** Store an episode link as the show's naming template and fill in links for episodes logged by number. */
+export async function setSampleUrl(userId: string, showId: string, url: string) {
+  await ready();
+  await db
+    .update(shows)
+    .set({ sampleUrl: url, updatedAt: now() })
+    .where(and(eq(shows.id, showId), eq(shows.userId, userId)));
+  // Backfill links for episodes that were logged by number before we had a template.
+  const missing = await db
+    .select({ id: episodes.id, season: episodes.season, episode: episodes.episode })
+    .from(episodes)
+    .where(and(eq(episodes.showId, showId), eq(episodes.userId, userId), sql`${episodes.url} is null`));
+  for (const ep of missing) {
+    const derived = rewriteEpisodeUrl(url, ep.season, ep.episode);
+    if (derived) await db.update(episodes).set({ url: derived }).where(eq(episodes.id, ep.id));
+  }
+  await recomputeProgress(showId);
 }
 
 export async function recordEpisode(
@@ -191,12 +218,20 @@ export type ShowCard = Show & {
 
 function toCard(show: Show, watchedCount: number): ShowCard {
   const hasProgress = show.lastSeason !== null && show.lastEpisode !== null;
+  const nextSeason = show.lastSeason ?? 1;
+  const nextEpisode = (show.lastEpisode ?? 0) + 1;
+  // Best source: the last watched file. Otherwise rebuild from the show's example link.
+  const nextUrl = show.lastUrl
+    ? guessNextEpisodeUrl(show.lastUrl)
+    : show.sampleUrl
+      ? rewriteEpisodeUrl(show.sampleUrl, nextSeason, nextEpisode)
+      : null;
   return {
     ...show,
     watchedCount,
     nextLabel: hasProgress ? formatEpisode(show.lastSeason!, show.lastEpisode! + 1) : null,
-    nextUrl: show.lastUrl ? guessNextEpisodeUrl(show.lastUrl) : null,
-    seasonFolderUrl: show.lastUrl ? parentFolderUrl(show.lastUrl) : show.folderUrl,
+    nextUrl,
+    seasonFolderUrl: nextUrl ? parentFolderUrl(nextUrl) : show.folderUrl,
   };
 }
 

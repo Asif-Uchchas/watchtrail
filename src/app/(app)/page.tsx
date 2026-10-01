@@ -7,6 +7,7 @@ import { AddLinkBar } from "@/components/add-link-bar";
 import { ShowsBoard } from "@/components/shows-board";
 import { MarkWatchedButton } from "@/components/show-actions";
 import { CopyLinkButton, FolderButton, PlayButton } from "@/components/play";
+import { EnablePlayForm } from "@/components/enable-play";
 import { Poster, SectionTitle, timeAgo } from "@/components/ui";
 
 export default async function HomePage() {
@@ -84,7 +85,11 @@ export default async function HomePage() {
                   <p className="mt-3 text-xs text-faint">
                     Play opens VLC and logs the episode. If that file doesn&apos;t exist (end of a season), open the folder instead.
                   </p>
-                ) : null}
+                ) : (
+                  <div className="mt-4 max-w-2xl">
+                    <EnablePlayForm showId={upNext.id} title={upNext.title} />
+                  </div>
+                )}
               </div>
             </div>
           </div>

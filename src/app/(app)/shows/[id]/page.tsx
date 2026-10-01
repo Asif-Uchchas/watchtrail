@@ -15,6 +15,7 @@ import {
   StatusSelect,
 } from "@/components/show-actions";
 import { CopyLinkButton, FolderButton, PlayButton } from "@/components/play";
+import { EnablePlayForm } from "@/components/enable-play";
 import { EmptyState, Poster, timeAgo } from "@/components/ui";
 
 export async function generateMetadata(props: PageProps<"/shows/[id]">): Promise<Metadata> {
@@ -106,9 +107,9 @@ export default async function ShowPage(props: PageProps<"/shows/[id]">) {
                   ) : null}
                 </div>
                 {!show.nextUrl ? (
-                  <p className="mt-3 text-xs text-faint">
-                    Paste an episode link on the home screen and Watchtrail will work out the next one from it.
-                  </p>
+                  <div className="mt-4">
+                    <EnablePlayForm showId={show.id} title={show.title} />
+                  </div>
                 ) : null}
               </div>
             ) : null}

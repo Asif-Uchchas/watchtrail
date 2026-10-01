@@ -8,7 +8,7 @@ import { z } from "zod";
 import { createSession, destroySession, requireUser } from "@/lib/auth";
 import { db, ready } from "@/lib/db";
 import { users, type ShowStatus } from "@/lib/schema";
-import { formatEpisode, parseMediaUrl } from "@/lib/parse";
+import { formatEpisode, normalizeKey, parseMediaUrl } from "@/lib/parse";
 import {
   deleteMovie,
   deleteShow,
@@ -16,6 +16,7 @@ import {
   recordEpisode,
   removeEpisode,
   setMovieWatched,
+  setSampleUrl,
   updateShow,
   upsertMovie,
   upsertShow,
@@ -111,6 +112,7 @@ export async function addLink(input: string, mode: "watched" | "track" = "watche
         title: parsed.showTitle,
         year: parsed.showYear,
         folderUrl: parsed.showFolderUrl,
+        sampleUrl: parsed.url,
       });
       const label = formatEpisode(parsed.season, parsed.episode);
       if (mode === "track") {
@@ -197,6 +199,27 @@ export async function unmarkEpisode(episodeId: string): Promise<ActionResult> {
   await removeEpisode(user.id, episodeId);
   refreshAll();
   return { ok: true, message: "Removed from your history." };
+}
+
+/**
+ * Give a show one real episode link so Watchtrail can build Play links for
+ * every other episode from it. Doesn't log anything as watched.
+ */
+export async function attachEpisodeLink(showId: string, input: string): Promise<ActionResult> {
+  const user = await requireUser();
+  const show = await getShow(user.id, showId);
+  if (!show) return { ok: false, error: "Show not found." };
+  const parsed = parseMediaUrl(input);
+  if (parsed.kind === "error") return { ok: false, error: parsed.message };
+  if (parsed.kind !== "episode") {
+    return { ok: false, error: "That's a folder or movie link. Paste the link to an episode file (…s02e01….mkv)." };
+  }
+  if (normalizeKey(parsed.showTitle) !== show.titleKey) {
+    return { ok: false, error: `That link looks like “${parsed.showTitle}”, not ${show.title}.` };
+  }
+  await setSampleUrl(user.id, show.id, parsed.url);
+  refreshAll();
+  return { ok: true, message: `Play is on for ${show.title}.` };
 }
 
 const showPatch = z.object({

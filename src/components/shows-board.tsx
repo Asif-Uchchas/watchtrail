@@ -145,6 +145,14 @@ function ShowTile({ show }: { show: ShowCard }) {
                   <FolderButton url={show.seasonFolderUrl} size="sm" />
                 ) : null}
               </div>
+              {!show.nextUrl ? (
+                <Link
+                  href={`/shows/${show.id}#enable-play`}
+                  className="mt-2 inline-block text-[12px] text-accent hover:text-accent-strong"
+                >
+                  Turn on Play →
+                </Link>
+              ) : null}
             </>
           )}
         </div>

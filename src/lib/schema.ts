@@ -20,6 +20,8 @@ export const shows = sqliteTable(
     titleKey: text("title_key").notNull(),
     year: text("year"),
     folderUrl: text("folder_url"),
+    /** Any known episode file link, used as a naming template to build other episodes' links. */
+    sampleUrl: text("sample_url"),
     posterUrl: text("poster_url"),
     status: text("status").$type<ShowStatus>().notNull().default("watching"),
     lastSeason: integer("last_season"),
@@ -96,6 +98,7 @@ export const SCHEMA_SQL = [
     title_key TEXT NOT NULL,
     year TEXT,
     folder_url TEXT,
+    sample_url TEXT,
     poster_url TEXT,
     status TEXT NOT NULL DEFAULT 'watching',
     last_season INTEGER,
@@ -133,3 +136,9 @@ export const SCHEMA_SQL = [
   `CREATE UNIQUE INDEX IF NOT EXISTS movies_user_title ON movies(user_id, title_key, year)`,
   `CREATE INDEX IF NOT EXISTS movies_user_watched ON movies(user_id, watched_at)`,
 ];
+
+/**
+ * Column additions for databases created by an earlier version. Each runs once;
+ * "duplicate column" errors on already-upgraded databases are expected and ignored.
+ */
+export const MIGRATIONS_SQL = [`ALTER TABLE shows ADD COLUMN sample_url TEXT`];

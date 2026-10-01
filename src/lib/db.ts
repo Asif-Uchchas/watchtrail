@@ -35,6 +35,13 @@ async function init() {
   await client.execute("PRAGMA foreign_keys = ON");
   if (url.startsWith("file:")) await client.execute("PRAGMA journal_mode = WAL");
   await client.batch(schema.SCHEMA_SQL, "write");
+  for (const statement of schema.MIGRATIONS_SQL) {
+    try {
+      await client.execute(statement);
+    } catch (err) {
+      if (!/duplicate column/i.test(String(err))) throw err;
+    }
+  }
 }
 
 /** Await before the first query in any request; creates tables on first run. */

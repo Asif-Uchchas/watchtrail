@@ -6,6 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: `${APP_NAME} — remember what you watched`,
     short_name: APP_NAME,
     description: "Track the episodes and movies you watch from FTP servers, on every device.",
+    id: "/",
     start_url: "/",
     scope: "/",
     display: "standalone",
