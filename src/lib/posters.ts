@@ -59,6 +59,8 @@ export type TvInfo = {
   /** season number → episode count, specials (season 0) excluded */
   seasons: Record<number, number>;
   status: string | null;
+  /** Typical episode length in minutes, when TMDB knows it. */
+  runtime: number | null;
 };
 
 /** Look up a show and its season sizes. Returns null when TMDB is off or nothing matched. */
@@ -68,6 +70,8 @@ export async function findTvInfo(title: string, year: string | null, knownId?: n
   const details = await tmdb<{
     poster_path?: string | null;
     status?: string;
+    episode_run_time?: number[];
+    last_episode_to_air?: { runtime?: number | null } | null;
     seasons?: { season_number: number; episode_count: number }[];
   }>(`/tv/${id}`);
   if (!details) return null;
@@ -80,5 +84,6 @@ export async function findTvInfo(title: string, year: string | null, knownId?: n
     posterUrl: details.poster_path ? `${IMAGE_BASE}${details.poster_path}` : null,
     seasons,
     status: details.status ?? null,
+    runtime: details.episode_run_time?.find((m) => m > 0) ?? details.last_episode_to_air?.runtime ?? null,
   };
 }

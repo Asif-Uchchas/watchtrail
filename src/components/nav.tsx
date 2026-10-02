@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Clock, Film, LifeBuoy, Tv } from "lucide-react";
+import { BarChart3, Clock, Film, Settings, Tv } from "lucide-react";
 import { cx } from "./ui";
 
 const ITEMS = [
   { href: "/", label: "Shows", icon: Tv, match: (p: string) => p === "/" || p.startsWith("/shows") },
   { href: "/movies", label: "Movies", icon: Film, match: (p: string) => p.startsWith("/movies") },
   { href: "/history", label: "History", icon: Clock, match: (p: string) => p.startsWith("/history") },
-  { href: "/help", label: "Help", icon: LifeBuoy, match: (p: string) => p.startsWith("/help") },
+  { href: "/stats", label: "Stats", icon: BarChart3, match: (p: string) => p.startsWith("/stats") },
+  { href: "/settings", label: "Settings", icon: Settings, match: (p: string) => p.startsWith("/settings") || p.startsWith("/help") },
 ];
 
 export function TopNav() {
@@ -40,7 +41,7 @@ export function BottomNav() {
       className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg/90 backdrop-blur-xl md:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <ul className="mx-auto grid max-w-md grid-cols-4">
+      <ul className="mx-auto grid max-w-md grid-cols-5">
         {ITEMS.map(({ href, label, icon: Icon, match }) => {
           const active = match(path);
           return (

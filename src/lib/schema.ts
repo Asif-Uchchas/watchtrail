@@ -8,6 +8,8 @@ export const users = sqliteTable("users", {
   email: text("email").notNull().unique(),
   name: text("name").notNull(),
   passwordHash: text("password_hash").notNull(),
+  /** Personal token for the browser helper (userscript); lets it log episodes without a login cookie. */
+  apiToken: text("api_token"),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
 });
 
@@ -29,6 +31,8 @@ export const shows = sqliteTable(
     seasonsJson: text("seasons_json"),
     /** TMDB status, e.g. "Ended" or "Returning Series". */
     airStatus: text("air_status"),
+    /** Typical episode length in minutes (TMDB), for watch-time stats. */
+    runtime: integer("runtime"),
     status: text("status").$type<ShowStatus>().notNull().default("watching"),
     lastSeason: integer("last_season"),
     lastEpisode: integer("last_episode"),
@@ -97,6 +101,7 @@ export const SCHEMA_SQL = [
     email TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     password_hash TEXT NOT NULL,
+    api_token TEXT,
     created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
   )`,
   `CREATE TABLE IF NOT EXISTS shows (
@@ -111,6 +116,7 @@ export const SCHEMA_SQL = [
     tmdb_id INTEGER,
     seasons_json TEXT,
     air_status TEXT,
+    runtime INTEGER,
     status TEXT NOT NULL DEFAULT 'watching',
     last_season INTEGER,
     last_episode INTEGER,
@@ -159,4 +165,7 @@ export const MIGRATIONS_SQL = [
   `ALTER TABLE shows ADD COLUMN seasons_json TEXT`,
   `ALTER TABLE shows ADD COLUMN air_status TEXT`,
   `ALTER TABLE episodes ADD COLUMN backfilled INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE shows ADD COLUMN runtime INTEGER`,
+  `ALTER TABLE users ADD COLUMN api_token TEXT`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS users_api_token ON users(api_token)`,
 ];

@@ -51,6 +51,7 @@ async function ensureTvInfo(show: Show): Promise<Show> {
     tmdbId: info?.tmdbId ?? 0,
     seasonsJson: info ? JSON.stringify(info.seasons) : null,
     airStatus: info?.status ?? null,
+    runtime: info?.runtime ?? null,
   };
   if (!show.posterUrl && info?.posterUrl) patch.posterUrl = info.posterUrl;
   await db.update(shows).set(patch).where(eq(shows.id, show.id));
@@ -67,6 +68,7 @@ export async function refreshTvInfo(userId: string, showId: string): Promise<Sho
     tmdbId: info.tmdbId,
     seasonsJson: JSON.stringify(info.seasons),
     airStatus: info.status,
+    runtime: info.runtime ?? show.runtime,
     posterUrl: show.posterUrl ?? info.posterUrl,
   };
   await db.update(shows).set(patch).where(eq(shows.id, show.id));
@@ -110,6 +112,7 @@ export async function upsertShow(
     tmdbId: postersEnabled() ? (info?.tmdbId ?? 0) : null,
     seasonsJson: info ? JSON.stringify(info.seasons) : null,
     airStatus: info?.status ?? null,
+    runtime: info?.runtime ?? null,
     status: "watching",
     lastSeason: null,
     lastEpisode: null,
@@ -538,6 +541,75 @@ export async function listHistory(userId: string, limit = 150): Promise<HistoryI
     })),
   ];
   return items.sort((a, b) => b.at.getTime() - a.at.getTime()).slice(0, limit);
+}
+
+export const DEFAULT_EPISODE_MINUTES = 42;
+export const DEFAULT_MOVIE_MINUTES = 105;
+
+export type WatchStats = {
+  episodes: number;
+  movies: number;
+  shows: number;
+  /** Estimated total watch time in minutes (TMDB runtimes where known, typical lengths otherwise). */
+  minutes: number;
+  /** Timestamps of real (non-backfilled) watches, for streaks and charts in the browser's time zone. */
+  activity: number[];
+  topShows: { id: string; title: string; posterUrl: string | null; episodes: number; minutes: number }[];
+};
+
+export async function getWatchStats(userId: string): Promise<WatchStats> {
+  await ready();
+  const showRows = await db.select().from(shows).where(eq(shows.userId, userId));
+  // Older shows have TMDB data but no runtime yet; fetch it once.
+  const filled = await Promise.all(
+    showRows.map(async (s) => {
+      if (s.runtime || !s.tmdbId || s.tmdbId <= 0 || !postersEnabled()) return s;
+      const info = await findTvInfo(s.title, s.year, s.tmdbId);
+      const runtime = info?.runtime ?? 0;
+      await db.update(shows).set({ runtime }).where(eq(shows.id, s.id));
+      return { ...s, runtime };
+    }),
+  );
+  const counts = await db
+    .select({ showId: episodes.showId, n: sql<number>`count(*)` })
+    .from(episodes)
+    .where(eq(episodes.userId, userId))
+    .groupBy(episodes.showId);
+  const countById = new Map(counts.map((c) => [c.showId, Number(c.n)]));
+
+  const perShow = filled.map((s) => {
+    const n = countById.get(s.id) ?? 0;
+    return { id: s.id, title: s.title, posterUrl: s.posterUrl, episodes: n, minutes: n * (s.runtime || DEFAULT_EPISODE_MINUTES) };
+  });
+
+  const [movieCount, epActivity, movieActivity] = await Promise.all([
+    db
+      .select({ n: sql<number>`count(*)` })
+      .from(movies)
+      .where(and(eq(movies.userId, userId), eq(movies.watched, true)))
+      .get(),
+    db
+      .select({ at: episodes.watchedAt })
+      .from(episodes)
+      .where(and(eq(episodes.userId, userId), eq(episodes.backfilled, false)))
+      .orderBy(desc(episodes.watchedAt))
+      .limit(5000),
+    db
+      .select({ at: movies.watchedAt })
+      .from(movies)
+      .where(and(eq(movies.userId, userId), eq(movies.watched, true))),
+  ]);
+  const movieN = Number(movieCount?.n ?? 0);
+  const episodeN = perShow.reduce((a, s) => a + s.episodes, 0);
+
+  return {
+    episodes: episodeN,
+    movies: movieN,
+    shows: showRows.length,
+    minutes: perShow.reduce((a, s) => a + s.minutes, 0) + movieN * DEFAULT_MOVIE_MINUTES,
+    activity: [...epActivity.map((r) => r.at.getTime()), ...movieActivity.flatMap((r) => (r.at ? [r.at.getTime()] : []))],
+    topShows: perShow.filter((s) => s.episodes > 0).sort((a, b) => b.minutes - a.minutes).slice(0, 6),
+  };
 }
 
 export async function getStats(userId: string) {

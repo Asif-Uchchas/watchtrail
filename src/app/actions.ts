@@ -9,6 +9,8 @@ import { createSession, destroySession, requireUser } from "@/lib/auth";
 import { db, ready } from "@/lib/db";
 import { users, type ShowStatus } from "@/lib/schema";
 import { formatEpisode, normalizeKey, parseMediaUrl } from "@/lib/parse";
+import { importLibrary } from "@/lib/backup";
+import { rotateToken } from "@/lib/ext";
 import {
   clearSeason,
   deleteMovie,
@@ -346,4 +348,27 @@ export async function removeMovie(movieId: string): Promise<ActionResult> {
 
 export async function undo(kind: "episode" | "movie", id: string): Promise<ActionResult> {
   return kind === "episode" ? unmarkEpisode(id) : removeMovie(id);
+}
+
+// ---------------------------------------------------------------- settings
+
+export async function regenerateApiToken(): Promise<ActionResult> {
+  const user = await requireUser();
+  await rotateToken(user.id);
+  revalidatePath("/settings");
+  return { ok: true, message: "New token created. Paste it into the browser helper again." };
+}
+
+export async function importBackup(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return { ok: false, error: "Choose a backup file first." };
+  if (file.size > 20 * 1024 * 1024) return { ok: false, error: "That file is too large for a backup." };
+  const result = await importLibrary(user.id, await file.text());
+  if ("error" in result) return { ok: false, error: result.error };
+  refreshAll();
+  return {
+    ok: true,
+    message: `Imported ${result.episodes} episodes, ${result.movies} movies and ${result.shows} new shows.`,
+  };
 }
