@@ -1,56 +1,84 @@
 import "server-only";
 
 /**
- * Optional poster artwork from TMDB. Set TMDB_API_KEY (a v3 API key) or
- * TMDB_READ_TOKEN (a v4 read access token) to turn it on. Without either the
- * app shows generated cover tiles instead, and nothing else changes.
+ * Optional TMDB integration: posters, and for TV shows the real episode count
+ * of every season (used for backfilling and rolling over to the next season).
+ * Set TMDB_API_KEY (v3 key) or TMDB_READ_TOKEN (v4 read token) to turn it on.
+ * Without either, everything still works; you just get generated covers and
+ * no season data.
  */
+const API = "https://api.themoviedb.org/3";
 const IMAGE_BASE = "https://image.tmdb.org/t/p/w342";
 
 export function postersEnabled(): boolean {
   return Boolean(process.env.TMDB_API_KEY || process.env.TMDB_READ_TOKEN);
 }
 
-export async function findPoster(
-  kind: "tv" | "movie",
-  title: string,
-  year: string | null,
-): Promise<string | null> {
+async function tmdb<T>(path: string, params: Record<string, string> = {}): Promise<T | null> {
   if (!postersEnabled()) return null;
-
-  const params = new URLSearchParams({ query: title, include_adult: "false" });
-  if (year) params.set(kind === "tv" ? "first_air_date_year" : "year", year);
-  if (process.env.TMDB_API_KEY) params.set("api_key", process.env.TMDB_API_KEY);
-
+  const query = new URLSearchParams(params);
+  if (process.env.TMDB_API_KEY) query.set("api_key", process.env.TMDB_API_KEY);
   const headers: Record<string, string> = { accept: "application/json" };
   if (!process.env.TMDB_API_KEY && process.env.TMDB_READ_TOKEN) {
     headers.authorization = `Bearer ${process.env.TMDB_READ_TOKEN}`;
   }
-
   try {
-    let results = await search(kind, params, headers);
-    if (results.length === 0 && year) {
-      params.delete(kind === "tv" ? "first_air_date_year" : "year");
-      results = await search(kind, params, headers);
-    }
-    const hit = results.find((r) => r.poster_path);
-    return hit?.poster_path ? `${IMAGE_BASE}${hit.poster_path}` : null;
+    const res = await fetch(`${API}${path}?${query}`, {
+      headers,
+      signal: AbortSignal.timeout(5000),
+      next: { revalidate: 60 * 60 * 24 },
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as T;
   } catch {
     return null;
   }
 }
 
-async function search(
-  kind: "tv" | "movie",
-  params: URLSearchParams,
-  headers: Record<string, string>,
-): Promise<{ poster_path?: string | null }[]> {
-  const res = await fetch(`https://api.themoviedb.org/3/search/${kind}?${params}`, {
-    headers,
-    signal: AbortSignal.timeout(4000),
-    cache: "force-cache",
-  });
-  if (!res.ok) return [];
-  const data = (await res.json()) as { results?: { poster_path?: string | null }[] };
-  return data.results ?? [];
+type SearchHit = { id: number; poster_path?: string | null };
+
+async function search(kind: "tv" | "movie", title: string, year: string | null): Promise<SearchHit | null> {
+  const params: Record<string, string> = { query: title, include_adult: "false" };
+  if (year) params[kind === "tv" ? "first_air_date_year" : "year"] = year;
+  let data = await tmdb<{ results?: SearchHit[] }>(`/search/${kind}`, params);
+  if (!data?.results?.length && year) {
+    delete params[kind === "tv" ? "first_air_date_year" : "year"];
+    data = await tmdb<{ results?: SearchHit[] }>(`/search/${kind}`, params);
+  }
+  return data?.results?.[0] ?? null;
+}
+
+export async function findPoster(kind: "tv" | "movie", title: string, year: string | null): Promise<string | null> {
+  const hit = await search(kind, title, year);
+  return hit?.poster_path ? `${IMAGE_BASE}${hit.poster_path}` : null;
+}
+
+export type TvInfo = {
+  tmdbId: number;
+  posterUrl: string | null;
+  /** season number → episode count, specials (season 0) excluded */
+  seasons: Record<number, number>;
+  status: string | null;
+};
+
+/** Look up a show and its season sizes. Returns null when TMDB is off or nothing matched. */
+export async function findTvInfo(title: string, year: string | null, knownId?: number | null): Promise<TvInfo | null> {
+  const id = knownId && knownId > 0 ? knownId : (await search("tv", title, year))?.id;
+  if (!id) return null;
+  const details = await tmdb<{
+    poster_path?: string | null;
+    status?: string;
+    seasons?: { season_number: number; episode_count: number }[];
+  }>(`/tv/${id}`);
+  if (!details) return null;
+  const seasons: Record<number, number> = {};
+  for (const s of details.seasons ?? []) {
+    if (s.season_number > 0 && s.episode_count > 0) seasons[s.season_number] = s.episode_count;
+  }
+  return {
+    tmdbId: id,
+    posterUrl: details.poster_path ? `${IMAGE_BASE}${details.poster_path}` : null,
+    seasons,
+    status: details.status ?? null,
+  };
 }

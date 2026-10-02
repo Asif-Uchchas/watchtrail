@@ -10,10 +10,13 @@ import { db, ready } from "@/lib/db";
 import { users, type ShowStatus } from "@/lib/schema";
 import { formatEpisode, normalizeKey, parseMediaUrl } from "@/lib/parse";
 import {
+  clearSeason,
   deleteMovie,
   deleteShow,
   getShow,
+  markUpTo,
   recordEpisode,
+  refreshTvInfo,
   removeEpisode,
   setMovieWatched,
   setSampleUrl,
@@ -24,8 +27,17 @@ import {
 
 export type FormState = { error?: string; fields?: Record<string, string> } | undefined;
 
+export type BackfillOffer = { showId: string; season: number; episode: number; label: string };
+
 export type ActionResult =
-  | { ok: true; message: string; href?: string; undo?: { kind: "episode" | "movie"; id: string } }
+  | {
+      ok: true;
+      message: string;
+      href?: string;
+      undo?: { kind: "episode" | "movie"; id: string };
+      /** Suggest marking every earlier episode too (first log of a show, partway through). */
+      offer?: BackfillOffer;
+    }
   | { ok: false; error: string };
 
 function refreshAll() {
@@ -119,6 +131,7 @@ export async function addLink(input: string, mode: "watched" | "track" = "watche
         refreshAll();
         return { ok: true, message: `${show.title} is in your shows.`, href: `/shows/${show.id}` };
       }
+      const hadProgress = show.lastSeason !== null;
       const { episodeId, alreadyWatched } = await recordEpisode(
         user.id,
         show.id,
@@ -127,6 +140,7 @@ export async function addLink(input: string, mode: "watched" | "track" = "watche
         parsed.url,
       );
       refreshAll();
+      const startedMidway = !hadProgress && (parsed.season > 1 || parsed.episode > 1);
       return {
         ok: true,
         message: alreadyWatched
@@ -134,6 +148,9 @@ export async function addLink(input: string, mode: "watched" | "track" = "watche
           : `Marked ${show.title} ${label} as watched.`,
         href: `/shows/${show.id}`,
         undo: alreadyWatched ? undefined : { kind: "episode", id: episodeId },
+        offer: startedMidway
+          ? { showId: show.id, season: parsed.season, episode: parsed.episode, label: `Everything before ${label} too?` }
+          : undefined,
       };
     }
 
@@ -199,6 +216,58 @@ export async function unmarkEpisode(episodeId: string): Promise<ActionResult> {
   await removeEpisode(user.id, episodeId);
   refreshAll();
   return { ok: true, message: "Removed from your history." };
+}
+
+const validEpisode = (season: number, episode: number) =>
+  Number.isInteger(season) && Number.isInteger(episode) && season >= 1 && episode >= 1 && season <= 99 && episode <= 999;
+
+/** Log an episode and every episode before it (earlier seasons via TMDB episode counts). */
+export async function markThrough(showId: string, season: number, episode: number): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!validEpisode(season, episode)) return { ok: false, error: "Season and episode must be whole numbers from 1." };
+  const result = await markUpTo(user.id, showId, season, episode);
+  if (!result) return { ok: false, error: "Show not found." };
+  refreshAll();
+  const label = formatEpisode(season, episode);
+  const parts = [
+    result.added
+      ? `Marked ${result.added + 1} episodes up to ${label} as watched.`
+      : `Logged ${label}; the earlier episodes were already marked.`,
+  ];
+  if (result.skippedSeasons.length) {
+    const list = result.skippedSeasons.join(", ");
+    parts.push(
+      `Couldn't fill season${result.skippedSeasons.length > 1 ? "s" : ""} ${list} because the episode count isn't known. Log the last episode of ${result.skippedSeasons.length > 1 ? "each" : "that"} season to fill it.`,
+    );
+  }
+  return { ok: true, message: parts.join(" ") };
+}
+
+/** "Set your place": one episode, or that episode plus everything before it. */
+export async function logProgress(
+  showId: string,
+  season: number,
+  episode: number,
+  includeEarlier: boolean,
+): Promise<ActionResult> {
+  return includeEarlier ? markThrough(showId, season, episode) : markEpisode(showId, season, episode, null);
+}
+
+export async function clearSeasonLog(showId: string, season: number): Promise<ActionResult> {
+  const user = await requireUser();
+  await clearSeason(user.id, showId, season);
+  refreshAll();
+  return { ok: true, message: `Cleared season ${season} from your log.` };
+}
+
+export async function refreshShowInfo(showId: string): Promise<ActionResult> {
+  const user = await requireUser();
+  const show = await refreshTvInfo(user.id, showId);
+  if (!show) return { ok: false, error: "Show not found." };
+  refreshAll();
+  return show.seasonsJson
+    ? { ok: true, message: "Episode list updated from TMDB." }
+    : { ok: false, error: "TMDB didn't recognise this title. Try renaming the show (Edit) to its official name." };
 }
 
 /**

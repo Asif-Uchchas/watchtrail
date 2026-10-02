@@ -91,8 +91,8 @@ export function ShowsBoard({ shows }: { shows: ShowCard[] }) {
 
 function ShowTile({ show }: { show: ShowCard }) {
   const hasProgress = show.lastSeason !== null && show.lastEpisode !== null;
-  const nextSeason = show.lastSeason ?? 1;
-  const nextEpisode = (show.lastEpisode ?? 0) + 1;
+  const nextSeason = show.nextSeason ?? 1;
+  const nextEpisode = show.nextEpisode ?? 1;
   return (
     <article className="group flex h-full gap-4 rounded-2xl border border-line bg-surface/70 p-3 transition hover:border-line-strong hover:bg-surface">
       <Link href={`/shows/${show.id}`} className="w-[84px] shrink-0">
@@ -112,9 +112,24 @@ function ShowTile({ show }: { show: ShowCard }) {
             "Not started"
           )}
         </p>
+        {show.totalEpisodes ? (
+          <div className="mt-2 flex items-center gap-2" title={`${show.watchedCount} of ${show.totalEpisodes} episodes`}>
+            <span className="h-1 flex-1 overflow-hidden rounded-full bg-surface-3">
+              <span
+                className="block h-full rounded-full bg-accent"
+                style={{ width: `${Math.min(100, Math.round((show.watchedCount / show.totalEpisodes) * 100))}%` }}
+              />
+            </span>
+            <span className="font-mono text-[11px] text-faint">
+              {show.watchedCount}/{show.totalEpisodes}
+            </span>
+          </div>
+        ) : null}
 
         <div className="mt-auto pt-3">
-          {show.status === "completed" ? (
+          {show.caughtUp ? (
+            <p className="text-[13px] text-success">All caught up · {show.watchedCount} episodes</p>
+          ) : show.status === "completed" ? (
             <p className="text-[13px] text-success">Finished · {show.watchedCount} episodes</p>
           ) : (
             <>

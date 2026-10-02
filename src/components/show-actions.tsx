@@ -1,9 +1,19 @@
 "use client";
 
-import { Check, Loader2, Pencil, Trash2, Undo2, X } from "lucide-react";
+import { Check, Loader2, Pencil, RefreshCw, Trash2, Undo2, X } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { editShow, markEpisode, removeMovie, removeShow, toggleMovie, unmarkEpisode } from "@/app/actions";
+import {
+  clearSeasonLog,
+  editShow,
+  logProgress,
+  markEpisode,
+  refreshShowInfo,
+  removeMovie,
+  removeShow,
+  toggleMovie,
+  unmarkEpisode,
+} from "@/app/actions";
 import { STATUSES } from "@/lib/constants";
 import type { ShowStatus } from "@/lib/schema";
 import { Button, buttonClass, iconButtonClass, inputClass } from "./ui";
@@ -70,36 +80,77 @@ export function ProgressForm({
   showId,
   defaultSeason,
   defaultEpisode,
+  hasSeasonData,
 }: {
   showId: string;
   defaultSeason: number;
   defaultEpisode: number;
+  hasSeasonData: boolean;
 }) {
   const { run, pending } = useActionToast();
   return (
     <form
-      className="flex flex-wrap items-end gap-2"
+      className="space-y-3"
       onSubmit={(e) => {
         e.preventDefault();
         const data = new FormData(e.currentTarget);
         const season = Number(data.get("season"));
         const episode = Number(data.get("episode"));
-        void run(() => markEpisode(showId, season, episode, null));
+        const includeEarlier = data.get("earlier") === "on";
+        void run(() => logProgress(showId, season, episode, includeEarlier));
       }}
     >
-      <label className="w-24">
-        <span className="mb-1.5 block text-xs text-muted">Season</span>
-        <input name="season" type="number" min={0} max={99} required defaultValue={defaultSeason} className={inputClass} />
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="w-24">
+          <span className="mb-1.5 block text-xs text-muted">Season</span>
+          <input name="season" type="number" min={1} max={99} required defaultValue={defaultSeason} className={inputClass} />
+        </label>
+        <label className="w-24">
+          <span className="mb-1.5 block text-xs text-muted">Episode</span>
+          <input name="episode" type="number" min={1} max={999} required defaultValue={defaultEpisode} className={inputClass} />
+        </label>
+        <Button type="submit" variant="secondary" size="md" disabled={pending} className="h-11">
+          {pending ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+          Log it
+        </Button>
+      </div>
+      <label className="flex cursor-pointer items-start gap-2.5 text-[13px] text-muted">
+        <input name="earlier" type="checkbox" defaultChecked className="mt-0.5 size-4 shrink-0 accent-[#f5b544]" />
+        <span>
+          Also mark <b className="text-ink">every earlier episode</b> as watched
+          {hasSeasonData ? null : (
+            <span className="block text-faint">
+              Without TMDB data only this season can be filled; earlier seasons need their last episode logged.
+            </span>
+          )}
+        </span>
       </label>
-      <label className="w-24">
-        <span className="mb-1.5 block text-xs text-muted">Episode</span>
-        <input name="episode" type="number" min={0} max={999} required defaultValue={defaultEpisode} className={inputClass} />
-      </label>
-      <Button type="submit" variant="secondary" size="md" disabled={pending} className="h-11">
-        {pending ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-        Log it
-      </Button>
     </form>
+  );
+}
+
+export function SeasonClearButton({ showId, season }: { showId: string; season: number }) {
+  const { run, pending } = useActionToast();
+  const { armed, arm } = useConfirm();
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      onClick={() => (armed ? run(() => clearSeasonLog(showId, season)) : arm())}
+      className={armed ? buttonClass("danger", "sm") : buttonClass("ghost", "sm", "text-faint")}
+    >
+      {armed ? "Clear the whole season?" : "Clear season"}
+    </button>
+  );
+}
+
+export function RefreshInfoButton({ showId }: { showId: string }) {
+  const { run, pending } = useActionToast();
+  return (
+    <Button type="button" variant="ghost" disabled={pending} onClick={() => run(() => refreshShowInfo(showId))}>
+      {pending ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+      Update episode list
+    </Button>
   );
 }
 

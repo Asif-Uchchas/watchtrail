@@ -23,6 +23,12 @@ export const shows = sqliteTable(
     /** Any known episode file link, used as a naming template to build other episodes' links. */
     sampleUrl: text("sample_url"),
     posterUrl: text("poster_url"),
+    /** TMDB TV id; 0 means "looked up, no match" so we don't keep searching. */
+    tmdbId: integer("tmdb_id"),
+    /** JSON map of season number → episode count from TMDB, e.g. {"1":22,"2":24}. */
+    seasonsJson: text("seasons_json"),
+    /** TMDB status, e.g. "Ended" or "Returning Series". */
+    airStatus: text("air_status"),
     status: text("status").$type<ShowStatus>().notNull().default("watching"),
     lastSeason: integer("last_season"),
     lastEpisode: integer("last_episode"),
@@ -46,6 +52,8 @@ export const episodes = sqliteTable(
     season: integer("season").notNull(),
     episode: integer("episode").notNull(),
     url: text("url"),
+    /** Logged in bulk by "mark everything up to here"; kept out of the History feed. */
+    backfilled: integer("backfilled", { mode: "boolean" }).notNull().default(false),
     watchedAt: integer("watched_at", { mode: "timestamp_ms" }).notNull(),
   },
   (t) => [
@@ -100,6 +108,9 @@ export const SCHEMA_SQL = [
     folder_url TEXT,
     sample_url TEXT,
     poster_url TEXT,
+    tmdb_id INTEGER,
+    seasons_json TEXT,
+    air_status TEXT,
     status TEXT NOT NULL DEFAULT 'watching',
     last_season INTEGER,
     last_episode INTEGER,
@@ -117,6 +128,7 @@ export const SCHEMA_SQL = [
     season INTEGER NOT NULL,
     episode INTEGER NOT NULL,
     url TEXT,
+    backfilled INTEGER NOT NULL DEFAULT 0,
     watched_at INTEGER NOT NULL
   )`,
   `CREATE UNIQUE INDEX IF NOT EXISTS episodes_show_se ON episodes(show_id, season, episode)`,
@@ -141,4 +153,10 @@ export const SCHEMA_SQL = [
  * Column additions for databases created by an earlier version. Each runs once;
  * "duplicate column" errors on already-upgraded databases are expected and ignored.
  */
-export const MIGRATIONS_SQL = [`ALTER TABLE shows ADD COLUMN sample_url TEXT`];
+export const MIGRATIONS_SQL = [
+  `ALTER TABLE shows ADD COLUMN sample_url TEXT`,
+  `ALTER TABLE shows ADD COLUMN tmdb_id INTEGER`,
+  `ALTER TABLE shows ADD COLUMN seasons_json TEXT`,
+  `ALTER TABLE shows ADD COLUMN air_status TEXT`,
+  `ALTER TABLE episodes ADD COLUMN backfilled INTEGER NOT NULL DEFAULT 0`,
+];

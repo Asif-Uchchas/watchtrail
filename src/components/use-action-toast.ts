@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useTransition } from "react";
 import { toast } from "sonner";
-import { undo, type ActionResult } from "@/app/actions";
+import { markThrough, undo, type ActionResult } from "@/app/actions";
 
 /**
  * Runs a server action and reports the result as a toast, with an Undo button
@@ -35,6 +35,24 @@ export function useActionToast() {
                   : undefined,
               });
               opts?.onSuccess?.(result);
+              const offer = result.offer;
+              if (offer) {
+                // Started a show midway: offer to fill in everything before in one tap.
+                toast(offer.label, {
+                  description: "Marks all earlier episodes as watched (uses TMDB's episode counts).",
+                  duration: 12000,
+                  action: {
+                    label: "Mark them",
+                    onClick: () => {
+                      void markThrough(offer.showId, offer.season, offer.episode).then((r) => {
+                        if (r.ok) toast.success(r.message);
+                        else toast.error(r.error);
+                        router.refresh();
+                      });
+                    },
+                  },
+                });
+              }
             } else {
               toast.error(result.error);
             }

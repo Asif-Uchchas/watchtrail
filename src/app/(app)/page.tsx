@@ -13,7 +13,7 @@ import { Poster, SectionTitle, timeAgo } from "@/components/ui";
 export default async function HomePage() {
   const user = await requireUser();
   const [shows, stats] = await Promise.all([listShows(user.id), getStats(user.id)]);
-  const upNext = shows.find((s) => s.status === "watching" && s.lastSeason !== null);
+  const upNext = shows.find((s) => s.status === "watching" && s.lastSeason !== null && !s.caughtUp && s.nextSeason !== null);
   const firstName = user.name.split(" ")[0];
 
   return (
@@ -63,7 +63,7 @@ export default async function HomePage() {
                       <PlayButton
                         url={upNext.nextUrl}
                         title={`${upNext.title} ${upNext.nextLabel}`}
-                        mark={{ showId: upNext.id, season: upNext.lastSeason!, episode: upNext.lastEpisode! + 1 }}
+                        mark={{ showId: upNext.id, season: upNext.nextSeason!, episode: upNext.nextEpisode! }}
                         label={`Play ${upNext.nextLabel}`}
                         size="lg"
                       />
@@ -72,8 +72,8 @@ export default async function HomePage() {
                   ) : null}
                   <MarkWatchedButton
                     showId={upNext.id}
-                    season={upNext.lastSeason!}
-                    episode={upNext.lastEpisode! + 1}
+                    season={upNext.nextSeason!}
+                    episode={upNext.nextEpisode!}
                     url={upNext.nextUrl}
                     size="lg"
                   />
