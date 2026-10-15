@@ -9,7 +9,8 @@ import { STATUSES } from "@/lib/constants";
 import { formatEpisode } from "@/lib/parse";
 import { MarkWatchedButton } from "./show-actions";
 import { FolderButton, PlayButton } from "./play";
-import { EmptyState, Poster, cx, timeAgo } from "./ui";
+import { EmptyState, Poster, cx } from "./ui";
+import { formatClock, resumeStart } from "@/lib/time";
 
 type Filter = ShowStatus | "all";
 
@@ -34,8 +35,8 @@ export function ShowsBoard({ shows }: { shows: ShowCard[] }) {
 
   return (
     <div>
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="no-scrollbar -mx-4 flex gap-1 overflow-x-auto px-4 sm:mx-0 sm:px-0" role="tablist">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="no-scrollbar -mx-4 flex gap-5 overflow-x-auto px-4 sm:mx-0 sm:px-0" role="tablist">
           {tabs.map((t) => (
             <button
               key={t.value}
@@ -43,44 +44,46 @@ export function ShowsBoard({ shows }: { shows: ShowCard[] }) {
               aria-selected={filter === t.value}
               onClick={() => setFilter(t.value)}
               className={cx(
-                "flex h-9 shrink-0 items-center gap-2 rounded-full px-3.5 text-[13px] font-medium transition",
-                filter === t.value ? "bg-ink text-bg" : "text-muted hover:bg-surface-2 hover:text-ink",
+                "flex h-10 shrink-0 items-center gap-1.5 border-b-2 text-sm transition",
+                filter === t.value
+                  ? "border-accent text-ink"
+                  : "border-transparent text-muted hover:text-ink",
               )}
             >
               {t.label}
-              <span className={cx("font-mono text-[11px]", filter === t.value ? "text-bg/60" : "text-faint")}>
-                {counts[t.value]}
-              </span>
+              <span className="text-[12px] text-faint">{counts[t.value]}</span>
             </button>
           ))}
         </div>
-        {shows.length > 4 ? (
-          <label className="relative sm:w-64">
+        {shows.length > 6 ? (
+          <label className="relative mb-1 sm:w-56">
             <span className="sr-only">Search shows</span>
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-faint" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search shows"
-              className="h-9 w-full rounded-full border border-line bg-surface-2 pl-9 pr-3 text-sm outline-none transition placeholder:text-faint focus:border-accent/60"
+              placeholder="Search"
+              className="h-9 w-full rounded-lg border border-line-strong bg-surface pl-9 pr-3 text-sm outline-none transition placeholder:text-faint focus:border-accent/60"
             />
           </label>
         ) : null}
       </div>
 
       {visible.length === 0 ? (
-        <EmptyState icon={<Tv className="size-5" />} title={shows.length === 0 ? "No shows yet" : "Nothing here"}>
-          {shows.length === 0
-            ? "Paste an episode link above and it'll show up here with a button for the next episode."
-            : query
-              ? `No shows match “${query}”.`
-              : "No shows with this status."}
-        </EmptyState>
+        <div className="mt-6">
+          <EmptyState icon={<Tv className="size-5" />} title={shows.length === 0 ? "No shows yet" : "Nothing here"}>
+            {shows.length === 0
+              ? "Paste an episode link above and it will show up here with a button for the next episode."
+              : query
+                ? `No shows match “${query}”.`
+                : "No shows with this status."}
+          </EmptyState>
+        </div>
       ) : (
-        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {visible.map((show, i) => (
-            <li key={show.id} className="animate-rise" style={{ animationDelay: `${Math.min(i, 12) * 30}ms` }}>
-              <ShowTile show={show} />
+        <ul className="border-t border-line">
+          {visible.map((show) => (
+            <li key={show.id} className="border-b border-line">
+              <ShowRow show={show} />
             </li>
           ))}
         </ul>
@@ -89,89 +92,91 @@ export function ShowsBoard({ shows }: { shows: ShowCard[] }) {
   );
 }
 
-function ShowTile({ show }: { show: ShowCard }) {
+function ShowRow({ show }: { show: ShowCard }) {
   const hasProgress = show.lastSeason !== null && show.lastEpisode !== null;
   const nextSeason = show.nextSeason ?? 1;
   const nextEpisode = show.nextEpisode ?? 1;
+  const finished = show.caughtUp || show.status === "completed";
+  const pct = show.totalEpisodes ? Math.min(100, Math.round((show.watchedCount / show.totalEpisodes) * 100)) : null;
+
   return (
-    <article className="group flex h-full gap-4 rounded-2xl border border-line bg-surface/70 p-3 transition hover:border-line-strong hover:bg-surface">
-      <Link href={`/shows/${show.id}`} className="w-[84px] shrink-0">
-        <Poster title={show.title} src={show.posterUrl} className="transition group-hover:brightness-110" />
+    <div className="flex items-center gap-4 py-3.5">
+      <Link href={`/shows/${show.id}`} className="w-11 shrink-0" tabIndex={-1} aria-hidden>
+        <Poster title={show.title} src={show.posterUrl} className="rounded-[5px]" />
       </Link>
-      <div className="flex min-w-0 flex-1 flex-col">
-        <Link href={`/shows/${show.id}`} className="min-w-0">
-          <h3 className="truncate text-[15px] font-semibold leading-snug hover:text-accent">{show.title}</h3>
-        </Link>
-        <p className="mt-0.5 text-[13px] text-muted" suppressHydrationWarning>
-          {hasProgress ? (
+
+      <Link href={`/shows/${show.id}`} className="min-w-0 flex-1">
+        <span className="block truncate text-base font-medium">{show.title}</span>
+        <span className="mt-0.5 block font-mono text-[13px] text-muted">
+          {finished ? (
+            <span className="text-success">{show.caughtUp ? "Caught up" : "Finished"}</span>
+          ) : hasProgress ? (
             <>
-              Last <span className="font-mono text-ink">{formatEpisode(show.lastSeason!, show.lastEpisode!)}</span>
-              {show.lastWatchedAt ? <> · {timeAgo(show.lastWatchedAt)}</> : null}
+              {show.resumeSeconds ? `Resume ${show.nextLabel} at ${formatClock(show.resumeSeconds)}` : `Next ${show.nextLabel ?? "S01E01"}`}
             </>
           ) : (
             "Not started"
           )}
-        </p>
-        {show.totalEpisodes ? (
-          <div className="mt-2 flex items-center gap-2" title={`${show.watchedCount} of ${show.totalEpisodes} episodes`}>
-            <span className="h-1 flex-1 overflow-hidden rounded-full bg-surface-3">
-              <span
-                className="block h-full rounded-full bg-accent"
-                style={{ width: `${Math.min(100, Math.round((show.watchedCount / show.totalEpisodes) * 100))}%` }}
+        </span>
+        {show.badge ? (
+          <span className={cx("mt-1 block text-[12px]", show.badge.kind === "new" ? "text-accent" : "text-faint")}>
+            {show.badge.text}
+          </span>
+        ) : null}
+      </Link>
+
+      <div className="hidden w-36 shrink-0 sm:block">
+        {pct !== null ? (
+          <div title={`${show.watchedCount} of ${show.totalEpisodes} episodes`}>
+            <div className="h-1 overflow-hidden rounded-full bg-surface-3">
+              <div
+                className={cx("h-full rounded-full", finished ? "bg-faint" : "bg-accent")}
+                style={{ width: `${pct}%` }}
               />
-            </span>
-            <span className="font-mono text-[11px] text-faint">
-              {show.watchedCount}/{show.totalEpisodes}
+            </div>
+            <span className="mt-1.5 block font-mono text-[12px] text-faint">
+              {show.watchedCount} / {show.totalEpisodes}
             </span>
           </div>
-        ) : null}
-
-        <div className="mt-auto pt-3">
-          {show.caughtUp ? (
-            <p className="text-[13px] text-success">All caught up · {show.watchedCount} episodes</p>
-          ) : show.status === "completed" ? (
-            <p className="text-[13px] text-success">Finished · {show.watchedCount} episodes</p>
-          ) : (
-            <>
-              <p className="mb-2 text-[12px] uppercase tracking-[0.12em] text-faint">
-                Up next <span className="font-mono normal-case tracking-normal text-accent">{show.nextLabel ?? "S01E01"}</span>
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {show.nextUrl ? (
-                  <PlayButton
-                    url={show.nextUrl}
-                    title={`${show.title} ${formatEpisode(nextSeason, nextEpisode)}`}
-                    mark={{ showId: show.id, season: nextSeason, episode: nextEpisode }}
-                    label="Play next"
-                    size="sm"
-                  />
-                ) : null}
-                {hasProgress ? (
-                  <MarkWatchedButton
-                    showId={show.id}
-                    season={nextSeason}
-                    episode={nextEpisode}
-                    url={show.nextUrl}
-                    label={show.nextUrl ? "Mark" : "Mark watched"}
-                    size="sm"
-                  />
-                ) : null}
-                {show.seasonFolderUrl ? (
-                  <FolderButton url={show.seasonFolderUrl} size="sm" />
-                ) : null}
-              </div>
-              {!show.nextUrl ? (
-                <Link
-                  href={`/shows/${show.id}#enable-play`}
-                  className="mt-2 inline-block text-[12px] text-accent hover:text-accent-strong"
-                >
-                  Turn on Play →
-                </Link>
-              ) : null}
-            </>
-          )}
-        </div>
+        ) : (
+          <span className="font-mono text-[12px] text-faint">{show.watchedCount} watched</span>
+        )}
       </div>
-    </article>
+
+      <div className="flex shrink-0 items-center gap-1.5">
+        {finished ? null : show.nextUrl ? (
+          <PlayButton
+            url={show.nextUrl}
+            title={`${show.title} ${formatEpisode(nextSeason, nextEpisode)}`}
+            mark={{ showId: show.id, season: nextSeason, episode: nextEpisode }}
+            start={resumeStart(show.resumeSeconds)}
+            label={show.resumeSeconds ? "Resume" : "Play"}
+            size="md"
+            variant="secondary"
+          />
+        ) : hasProgress ? (
+          <MarkWatchedButton
+            showId={show.id}
+            season={nextSeason}
+            episode={nextEpisode}
+            url={show.nextUrl}
+            label="Mark"
+            size="md"
+          />
+        ) : (
+          <Link
+            href={`/shows/${show.id}#enable-play`}
+            className="text-[13px] text-accent hover:text-accent-strong"
+          >
+            Set up
+          </Link>
+        )}
+        {!finished && show.nextUrl && show.seasonFolderUrl ? (
+          <span className="hidden sm:inline-flex">
+            <FolderButton url={show.seasonFolderUrl} size="md" />
+          </span>
+        ) : null}
+      </div>
+    </div>
   );
 }

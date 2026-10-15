@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { db, ready } from "./db";
 import { episodes, movies, shows, users } from "./schema";
 import { formatEpisode, normalizeKey, parseMediaUrl } from "./parse";
-import { recordEpisode, upsertMovie, upsertShow } from "./library";
+import { learnLinks, recordEpisode, upsertMovie, upsertShow } from "./library";
 
 /** The browser helper's personal token (created on first use). */
 export async function getOrCreateToken(userId: string): Promise<string> {
@@ -71,4 +71,30 @@ export async function logUrl(userId: string, url: string): Promise<{ ok: boolean
     return { ok: true, message: movie.year ? `${movie.title} (${movie.year})` : movie.title };
   }
   return { ok: false, message: "That link is a folder, not a video file." };
+}
+
+/**
+ * File links seen on a folder page. For shows the user already tracks, remember
+ * the real link of each episode so Play never has to guess the file name.
+ */
+export async function learnFromListing(userId: string, urls: string[]): Promise<number> {
+  await ready();
+  const own = await db.select({ id: shows.id, key: shows.titleKey }).from(shows).where(eq(shows.userId, userId));
+  const byKey = new Map(own.map((s) => [s.key, s.id]));
+  const grouped = new Map<string, { season: number; episode: number; url: string }[]>();
+  for (const u of urls) {
+    const p = parseMediaUrl(u);
+    if (p.kind !== "episode") continue;
+    const showId = byKey.get(normalizeKey(p.showTitle));
+    if (!showId) continue;
+    const list = grouped.get(showId) ?? [];
+    list.push({ season: p.season, episode: p.episode, url: p.url });
+    grouped.set(showId, list);
+  }
+  let n = 0;
+  for (const [showId, items] of grouped) {
+    await learnLinks(userId, showId, items);
+    n += items.length;
+  }
+  return n;
 }

@@ -11,7 +11,7 @@ export function GET(request: Request) {
   const script = `// ==UserScript==
 // @name         Watchtrail for FTP listings
 // @namespace    ${origin}
-// @version      1.0
+// @version      1.1
 // @description  Shows what you have watched in FTP/h5ai file listings and logs episodes with one click.
 // @match        *://*.circleftp.net/*
 // @match        *://circleftp.net/*
@@ -116,6 +116,8 @@ export function GET(request: Request) {
       ((r.json && r.json.watched) || []).forEach(function (u) { seen[u] = true; });
       links.forEach(function (a) { badge(a, Boolean(seen[a.href])); });
       status("connected");
+      // Tell Watchtrail the real file names, so Play never has to guess them.
+      call("/api/ext/links", { urls: links.map(function (a) { return a.href; }).slice(0, 400) });
     }, function () { status("offline", true); links.forEach(function (a) { a.removeAttribute("data-wt"); }); });
   }
 

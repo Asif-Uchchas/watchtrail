@@ -22,8 +22,8 @@ export function TopNav() {
           key={href}
           href={href}
           className={cx(
-            "rounded-full px-3.5 py-1.5 text-sm transition",
-            match(path) ? "bg-surface-3 text-ink" : "text-muted hover:text-ink",
+            "rounded-lg px-3 py-1.5 text-sm transition",
+            match(path) ? "bg-surface-2 text-ink" : "text-muted hover:text-ink",
           )}
         >
           {label}
@@ -38,7 +38,7 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Main"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg/90 backdrop-blur-xl md:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg md:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <ul className="mx-auto grid max-w-md grid-cols-5">
@@ -49,7 +49,7 @@ export function BottomNav() {
               <Link
                 href={href}
                 className={cx(
-                  "flex h-16 flex-col items-center justify-center gap-1 text-[11px] transition",
+                  "flex h-16 flex-col items-center justify-center gap-1 text-[11px] font-medium transition",
                   active ? "text-accent" : "text-muted",
                 )}
               >

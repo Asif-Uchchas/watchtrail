@@ -16,6 +16,25 @@ Paste the link you'd normally open in VLC. Watchtrail works out the show, season
 - Show statuses (Watching, On hold, Finished, Dropped), search, a movie watchlist, a day-by-day history, and undo on every log.
 - Accounts, so friends can use the same server with their own lists.
 - Optional posters from TMDB.
+- **Episode list** per season with TMDB titles and summaries (shown only for episodes you have reached, so no spoilers), a tick to log or un-log any episode, and Play on each row.
+- **Real file names, learned**: with the browser helper (Settings), every folder page you open teaches Watchtrail the exact file name of each episode. Play uses those, so shows whose file names contain the episode title still work.
+- **Resume where you stopped**: type "stopped at 21:30" on the show page, and Play / Resume starts 5 seconds earlier (desktop playlists and Android VLC; iOS VLC has no start-time option).
+- **New-episode badges** for shows that are still airing, refreshed from TMDB about twice a day.
+- **Queue 5**: a playlist of the next five episodes for VLC on desktop.
+- **Star ratings** for shows.
+
+## PC bridge for VLC (optional)
+
+`scripts/vlc-bridge.mjs` watches VLC on your PC and tells Watchtrail where you are in a file, so the position is saved automatically and a finished episode is logged without clicking anything. VLC on phones cannot report this, so on a phone use "stopped at" by hand.
+
+1. In VLC: Tools > Preferences > Show settings: All > Interface > Main interfaces, tick **Web**, then under **Lua** set an HTTP password. Restart VLC.
+2. Copy your token from Watchtrail > Settings, then run (Node 18+):
+
+```bash
+WATCHTRAIL_URL=https://your-site.vercel.app WATCHTRAIL_TOKEN=wt_xxx VLC_PASSWORD=yourpass node scripts/vlc-bridge.mjs
+```
+
+It only tracks streams (http, https, ftp) and only files Watchtrail already knows.
 
 ## Run it locally
 

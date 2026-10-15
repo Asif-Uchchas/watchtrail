@@ -9,24 +9,24 @@ type Variant = "primary" | "secondary" | "ghost" | "danger";
 type Size = "sm" | "md" | "lg";
 
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-xl font-medium transition-[background,color,border-color,transform] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 select-none whitespace-nowrap";
+  "inline-flex items-center justify-center gap-2 rounded-[10px] font-medium transition-[background,color,border-color] active:scale-[0.99] disabled:pointer-events-none disabled:opacity-50 select-none whitespace-nowrap";
 const variants: Record<Variant, string> = {
-  primary: "bg-accent text-accent-ink hover:bg-accent-strong shadow-[0_8px_24px_-12px_rgb(245_181_68/0.7)]",
-  secondary: "bg-surface-2 text-ink border border-line hover:border-line-strong hover:bg-surface-3",
+  primary: "bg-accent text-accent-ink hover:bg-accent-strong",
+  secondary: "bg-transparent text-ink border border-line-strong hover:bg-surface-2",
   ghost: "text-muted hover:text-ink hover:bg-surface-2",
   danger: "bg-danger/10 text-danger border border-danger/30 hover:bg-danger/20",
 };
 const sizes: Record<Size, string> = {
   sm: "h-8 px-3 text-[13px]",
   md: "h-10 px-4 text-sm",
-  lg: "h-12 px-5 text-[15px]",
+  lg: "h-11 px-5 text-sm",
 };
 
 export function buttonClass(variant: Variant = "secondary", size: Size = "md", extra?: string) {
   return cx(base, variants[variant], sizes[size], extra);
 }
 
-const squareSizes: Record<Size, string> = { sm: "size-8", md: "size-10", lg: "size-12" };
+const squareSizes: Record<Size, string> = { sm: "size-8", md: "size-10", lg: "size-11" };
 
 /** Square, icon-only button styling (no horizontal padding to fight with). */
 export function iconButtonClass(variant: Variant = "secondary", size: Size = "md", extra?: string) {
@@ -52,32 +52,24 @@ export function ButtonLink({
 }
 
 export const inputClass =
-  "w-full h-11 rounded-xl bg-surface-2 border border-line px-3.5 text-[15px] text-ink placeholder:text-faint outline-none transition focus:border-accent/70 focus:bg-surface-3 focus:ring-4 focus:ring-accent/10";
+  "w-full h-11 rounded-[10px] bg-surface border border-line-strong px-3.5 text-[15px] text-ink placeholder:text-faint outline-none transition focus:border-accent/70";
 
 export function Logo({ className }: { className?: string }) {
   return (
-    <span className={cx("inline-flex items-center gap-2.5", className)}>
-      <svg viewBox="0 0 64 64" className="size-8 shrink-0" aria-hidden>
-        <rect width="64" height="64" rx="14" fill="#18181d" />
-        <circle cx="13" cy="44" r="3" fill="#f5b544" opacity=".35" />
-        <circle cx="21" cy="40" r="3.4" fill="#f5b544" opacity=".6" />
-        <path d="M28 18.5v27a2 2 0 0 0 3 1.7l22-13.5a2 2 0 0 0 0-3.4L31 16.8a2 2 0 0 0-3 1.7Z" fill="#f5b544" />
+    <span className={cx("inline-flex items-center gap-2.5 text-[18px] font-semibold tracking-tight", className)}>
+      <svg viewBox="0 0 24 24" className="size-5 shrink-0" aria-hidden>
+        <path d="M7 4.5v15l13-7.5z" fill="#f2b84b" />
       </svg>
-      <span className="font-display text-[26px] leading-none tracking-tight">Watchtrail</span>
+      Watchtrail
     </span>
   );
 }
 
-/** Deterministic warm/cool gradient per title, used when there is no poster. */
-function paletteFor(title: string) {
+/** A stable muted tint per title, used when there is no poster. */
+function tintFor(title: string) {
   let h = 0;
   for (let i = 0; i < title.length; i++) h = (h * 31 + title.charCodeAt(i)) >>> 0;
-  const hue = h % 360;
-  return {
-    from: `hsl(${hue} 45% 22%)`,
-    to: `hsl(${(hue + 40) % 360} 55% 9%)`,
-    glow: `hsl(${hue} 80% 65% / 0.25)`,
-  };
+  return `hsl(${h % 360} 14% 21%)`;
 }
 
 export function Poster({
@@ -98,11 +90,10 @@ export function Poster({
         src={src}
         alt=""
         loading="lazy"
-        className={cx("aspect-[2/3] w-full rounded-xl object-cover bg-surface-2 ring-1 ring-white/5", className)}
+        className={cx("aspect-[2/3] w-full rounded-lg object-cover bg-surface-2", className)}
       />
     );
   }
-  const p = paletteFor(title);
   const initials = title
     .split(/\s+/)
     .filter(Boolean)
@@ -112,14 +103,10 @@ export function Poster({
   return (
     <div
       aria-hidden
-      className={cx(
-        "relative aspect-[2/3] w-full overflow-hidden rounded-xl ring-1 ring-white/5 flex flex-col justify-between p-3",
-        className,
-      )}
-      style={{ background: `radial-gradient(120% 80% at 20% 0%, ${p.glow}, transparent 60%), linear-gradient(160deg, ${p.from}, ${p.to})` }}
+      className={cx("flex aspect-[2/3] w-full items-end overflow-hidden rounded-lg p-[8%]", className)}
+      style={{ background: tintFor(title) }}
     >
-      <span className="font-display text-4xl leading-none text-white/85">{initials}</span>
-      <span className="line-clamp-3 font-display text-lg leading-tight text-white/70">{label ?? title}</span>
+      <span className="font-mono text-[clamp(11px,28%,26px)] leading-none text-white/75">{label ?? initials}</span>
     </div>
   );
 }
@@ -134,9 +121,9 @@ export function EmptyState({
   children?: ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-dashed border-line px-6 py-12 text-center">
-      <div className="mx-auto mb-4 grid size-12 place-items-center rounded-2xl bg-surface-2 text-accent">{icon}</div>
-      <h3 className="font-display text-2xl">{title}</h3>
+    <div className="rounded-xl border border-dashed border-line-strong px-6 py-12 text-center">
+      <div className="mx-auto mb-4 grid size-11 place-items-center rounded-full bg-surface-2 text-muted">{icon}</div>
+      <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
       {children ? <div className="mx-auto mt-2 max-w-md text-sm text-muted">{children}</div> : null}
     </div>
   );
@@ -145,7 +132,7 @@ export function EmptyState({
 export function SectionTitle({ children, aside }: { children: ReactNode; aside?: ReactNode }) {
   return (
     <div className="mb-4 flex items-end justify-between gap-4">
-      <h2 className="font-display text-[28px] leading-none tracking-tight">{children}</h2>
+      <h2 className="text-[13px] font-medium uppercase tracking-[0.06em] text-muted">{children}</h2>
       {aside}
     </div>
   );

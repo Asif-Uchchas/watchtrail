@@ -24,7 +24,9 @@ export async function GET(request: NextRequest) {
 
   const safeTitle = title.replace(/[\r\n]+/g, " ");
   const fileName = safeTitle.replace(/[^a-z0-9 ._-]+/gi, "").trim().slice(0, 80) || "watchtrail";
-  const body = `#EXTM3U\n#EXTINF:-1,${safeTitle}\n${url.toString()}\n`;
+  const start = Math.round(Number(request.nextUrl.searchParams.get("s")));
+  const startLine = start > 0 && start < 86_400 ? `#EXTVLCOPT:start-time=${start}\n` : "";
+  const body = `#EXTM3U\n#EXTINF:-1,${safeTitle}\n${startLine}${url.toString()}\n`;
 
   return new NextResponse(body, {
     headers: {

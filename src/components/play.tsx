@@ -11,9 +11,9 @@ import { useActionToast } from "./use-action-toast";
 type Mark = { showId: string; season: number; episode: number };
 
 /** Hand a link to VLC the right way for this device. */
-export function openInVlc(url: string, title: string) {
+export function openInVlc(url: string, title: string, startSeconds?: number) {
   const platform = detectPlatform(navigator.userAgent);
-  const href = vlcLinkFor(platform, url, title);
+  const href = vlcLinkFor(platform, url, title, startSeconds);
   if (platform === "desktop") {
     const a = document.createElement("a");
     a.href = href;
@@ -34,6 +34,7 @@ export function PlayButton({
   url,
   title,
   mark,
+  start,
   label = "Play in VLC",
   size = "md",
   variant = "primary",
@@ -43,6 +44,8 @@ export function PlayButton({
   title: string;
   /** If set, the episode is logged as watched when Play is pressed. */
   mark?: Mark;
+  /** Start this many seconds in (the caller subtracts any rewind). */
+  start?: number;
   label?: string;
   size?: "sm" | "md" | "lg";
   variant?: "primary" | "secondary";
@@ -58,7 +61,7 @@ export function PlayButton({
       className={className}
       onClick={() => {
         // Open first: mobile browsers only allow app hand-off inside the click itself.
-        openInVlc(url, title);
+        openInVlc(url, title, start);
         if (mark) void run(() => markEpisode(mark.showId, mark.season, mark.episode, url));
       }}
     >

@@ -1,8 +1,8 @@
 import "server-only";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { db, ready } from "./db";
-import { episodes, movies, shows, type Movie, type Show } from "./schema";
-import { findPoster, findTvInfo, postersEnabled } from "./posters";
+import { episodes, links, movies, shows, type Movie, type Show } from "./schema";
+import { findPoster, findTvInfo, getSeasonInfo, postersEnabled, type AirInfo, type SeasonEpisode } from "./posters";
 import { formatEpisode, guessNextEpisodeUrl, normalizeKey, parentFolderUrl, rewriteEpisodeUrl } from "./parse";
 
 const now = () => new Date();
@@ -44,14 +44,29 @@ export function episodeAfter(
 }
 
 /** Fetch TMDB id, poster and season sizes once per show (no-op without a TMDB key). */
+const REFRESH_MS = 12 * 60 * 60 * 1000;
+
 async function ensureTvInfo(show: Show): Promise<Show> {
-  if (show.tmdbId !== null || !postersEnabled()) return show;
+  if (!postersEnabled()) return show;
+  if (show.tmdbId !== null) {
+    // Matched before: keep running shows fresh so new episodes show up on their own.
+    const ongoing = show.airStatus !== "Ended" && show.airStatus !== "Canceled";
+    const stale = !show.infoAt || (ongoing && Date.now() - show.infoAt.getTime() > REFRESH_MS);
+    if (!stale || !show.tmdbId || show.tmdbId <= 0) return show;
+    try {
+      return (await refreshTvInfo(show.userId, show.id)) ?? show;
+    } catch {
+      return show;
+    }
+  }
   const info = await findTvInfo(show.title, show.year);
   const patch: Partial<Show> = {
     tmdbId: info?.tmdbId ?? 0,
     seasonsJson: info ? JSON.stringify(info.seasons) : null,
     airStatus: info?.status ?? null,
     runtime: info?.runtime ?? null,
+    airJson: info?.air ? JSON.stringify(info.air) : null,
+    infoAt: now(),
   };
   if (!show.posterUrl && info?.posterUrl) patch.posterUrl = info.posterUrl;
   await db.update(shows).set(patch).where(eq(shows.id, show.id));
@@ -69,6 +84,8 @@ export async function refreshTvInfo(userId: string, showId: string): Promise<Sho
     seasonsJson: JSON.stringify(info.seasons),
     airStatus: info.status,
     runtime: info.runtime ?? show.runtime,
+    airJson: info.air ? JSON.stringify(info.air) : null,
+    infoAt: now(),
     posterUrl: show.posterUrl ?? info.posterUrl,
   };
   await db.update(shows).set(patch).where(eq(shows.id, show.id));
@@ -113,6 +130,9 @@ export async function upsertShow(
     seasonsJson: info ? JSON.stringify(info.seasons) : null,
     airStatus: info?.status ?? null,
     runtime: info?.runtime ?? null,
+    airJson: info?.air ? JSON.stringify(info.air) : null,
+    infoAt: info ? now() : null,
+    rating: null,
     status: "watching",
     lastSeason: null,
     lastEpisode: null,
@@ -178,6 +198,12 @@ async function referenceUrl(showId: string, preferSeason?: number): Promise<stri
 
 /** Build a link for an episode logged by number, from any other episode we have a link for. */
 async function deriveEpisodeUrl(showId: string, season: number, episode: number): Promise<string | null> {
+  const learned = await db
+    .select({ url: links.url })
+    .from(links)
+    .where(and(eq(links.showId, showId), eq(links.season, season), eq(links.episode, episode)))
+    .get();
+  if (learned) return learned.url;
   const ref = await referenceUrl(showId, season);
   return ref ? rewriteEpisodeUrl(ref, season, episode) : null;
 }
@@ -208,6 +234,7 @@ export async function recordEpisode(
   url: string | null,
 ): Promise<{ episodeId: string; alreadyWatched: boolean }> {
   await ready();
+  if (url) await learnLinks(userId, showId, [{ season, episode, url }]);
   if (!url) url = await deriveEpisodeUrl(showId, season, episode);
   const existing = await db
     .select({ id: episodes.id, url: episodes.url })
@@ -362,22 +389,79 @@ export type ShowCard = Show & {
   watchedCount: number;
   totalEpisodes: number | null;
   seasonCount: number | null;
+  /** Seconds into nextEpisode where the user stopped; set when nextEpisode is an unfinished one. */
+  resumeSeconds: number | null;
+  /** "New episode aired" / "S02E10 on Oct 21", when TMDB knows. */
+  badge: { kind: "new" | "soon"; text: string } | null;
 };
 
-function toCard(show: Show, watchedCount: number): ShowCard {
+type CardContext = {
+  /** Real file links seen in folder listings, keyed "season:episode". */
+  learned: Map<string, string>;
+  /** An episode that was started but not finished. */
+  resume: { season: number; episode: number; seconds: number; url: string | null } | null;
+};
+
+const cmpEp = (a: { s: number; e: number }, b: { s: number; e: number }) => a.s - b.s || a.e - b.e;
+const shortDate = (iso: string) =>
+  new Date(iso + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+
+export function parseAir(show: Pick<Show, "airJson">): AirInfo | null {
+  if (!show.airJson) return null;
+  try {
+    return JSON.parse(show.airJson) as AirInfo;
+  } catch {
+    return null;
+  }
+}
+
+function airBadge(show: Show, next: { season: number; episode: number } | null): ShowCard["badge"] {
+  const air = parseAir(show);
+  if (!air || show.airStatus === "Ended" || show.airStatus === "Canceled") return null;
+  const nextRef = next ? { s: next.season, e: next.episode } : null;
+  if (air.last && (!nextRef || cmpEp(nextRef, air.last) <= 0)) {
+    const age = air.last.date ? (Date.now() - Date.parse(air.last.date)) / 86_400_000 : 99;
+    if (nextRef && age <= 14) return { kind: "new", text: "New episode aired" };
+    if (nextRef) return null;
+  }
+  if (air.next?.date) {
+    const days = Math.ceil((Date.parse(air.next.date) - Date.now()) / 86_400_000);
+    if (days >= 0) return { kind: "soon", text: formatEpisode(air.next.s, air.next.e) + " on " + shortDate(air.next.date) };
+  }
+  return null;
+}
+
+function toCard(show: Show, watchedCount: number, ctx: CardContext): ShowCard {
   const seasons = parseSeasons(show);
   const hasProgress = show.lastSeason !== null && show.lastEpisode !== null;
-  const next = hasProgress
+  let next = hasProgress
     ? episodeAfter(seasons, show.lastSeason!, show.lastEpisode!)
     : { season: 1, episode: 1 };
 
+  // A started-but-unfinished episode comes before the next new one.
+  let resumeSeconds: number | null = null;
+  let resumeUrl: string | null = null;
+  // (A stop position older than the latest watched episode is stale.)
+  const resumeIsCurrent =
+    ctx.resume &&
+    (!hasProgress ||
+      cmpEp({ s: ctx.resume.season, e: ctx.resume.episode }, { s: show.lastSeason!, e: show.lastEpisode! }) >= 0);
+  if (ctx.resume && resumeIsCurrent) {
+    next = { season: ctx.resume.season, episode: ctx.resume.episode };
+    resumeSeconds = ctx.resume.seconds;
+    resumeUrl = ctx.resume.url;
+  }
+
   let nextUrl: string | null = null;
   if (next) {
-    // Rebuild from the last watched file (or the show's example link); this also
-    // handles moving to the next season's folder.
-    const base = show.lastUrl ?? show.sampleUrl;
-    nextUrl = base ? rewriteEpisodeUrl(base, next.season, next.episode) : null;
-    if (!nextUrl && show.lastUrl && next.season === show.lastSeason) nextUrl = guessNextEpisodeUrl(show.lastUrl);
+    nextUrl = resumeUrl ?? ctx.learned.get(next.season + ":" + next.episode) ?? null;
+    if (!nextUrl) {
+      // Rebuild from the last watched file (or the show's example link); this also
+      // handles moving to the next season's folder.
+      const base = show.lastUrl ?? show.sampleUrl;
+      nextUrl = base ? rewriteEpisodeUrl(base, next.season, next.episode) : null;
+      if (!nextUrl && show.lastUrl && next.season === show.lastSeason) nextUrl = guessNextEpisodeUrl(show.lastUrl);
+    }
   }
 
   const totalEpisodes = seasons ? Object.values(seasons).reduce((a, b) => a + b, 0) : null;
@@ -396,7 +480,31 @@ function toCard(show: Show, watchedCount: number): ShowCard {
     caughtUp: hasProgress && next === null,
     totalEpisodes,
     seasonCount: seasons ? Object.keys(seasons).length : null,
+    resumeSeconds,
+    badge: airBadge(show, next),
   };
+}
+
+async function cardContexts(userId: string, showIds: string[]): Promise<Map<string, CardContext>> {
+  const out = new Map<string, CardContext>();
+  for (const id of showIds) out.set(id, { learned: new Map(), resume: null });
+  if (!showIds.length) return out;
+  const learned = await db
+    .select({ showId: links.showId, season: links.season, episode: links.episode, url: links.url })
+    .from(links)
+    .where(eq(links.userId, userId));
+  for (const l of learned) out.get(l.showId)?.learned.set(l.season + ":" + l.episode, l.url);
+  const unfinished = await db
+    .select({ showId: episodes.showId, season: episodes.season, episode: episodes.episode, url: episodes.url, seconds: episodes.resumeSeconds })
+    .from(episodes)
+    .where(and(eq(episodes.userId, userId), sql`${episodes.resumeSeconds} > 0`))
+    .orderBy(asc(episodes.watchedAt));
+  // Latest started episode wins.
+  for (const u of unfinished) {
+    const ctx = out.get(u.showId);
+    if (ctx) ctx.resume = { season: u.season, episode: u.episode, seconds: u.seconds!, url: u.url };
+  }
+  return out;
 }
 
 export async function listShows(userId: string): Promise<ShowCard[]> {
@@ -413,7 +521,8 @@ export async function listShows(userId: string): Promise<ShowCard[]> {
     .orderBy(desc(sql`coalesce(${shows.lastWatchedAt}, ${shows.createdAt})`));
   // Shows added before TMDB was set up get their season data on first view.
   const enriched = await Promise.all(rows.map((r) => ensureTvInfo(r.show)));
-  return enriched.map((show, i) => toCard(show, Number(rows[i].watchedCount)));
+  const ctxs = await cardContexts(userId, enriched.map((s) => s.id));
+  return enriched.map((show, i) => toCard(show, Number(rows[i].watchedCount), ctxs.get(show.id)!));
 }
 
 export async function getShowDetail(userId: string, showId: string) {
@@ -425,7 +534,8 @@ export async function getShowDetail(userId: string, showId: string) {
     .from(episodes)
     .where(eq(episodes.showId, showId))
     .orderBy(asc(episodes.season), asc(episodes.episode));
-  return { show: toCard(show, log.length), episodes: log, seasons: parseSeasons(show) };
+  const ctxs = await cardContexts(userId, [showId]);
+  return { show: toCard(show, log.length, ctxs.get(showId)!), episodes: log, seasons: parseSeasons(show) };
 }
 
 // ---------------------------------------------------------------- movies
@@ -467,6 +577,8 @@ export async function upsertMovie(
     url: input.url,
     posterUrl: await findPoster("movie", input.title, input.year),
     watched: input.watched,
+    rating: null,
+    resumeSeconds: null,
     watchedAt: input.watched ? now() : null,
     createdAt: now(),
   };
@@ -624,4 +736,204 @@ export async function getStats(userId: string) {
     db.select({ n: sql<number>`count(*)` }).from(shows).where(eq(shows.userId, userId)).get(),
   ]);
   return { episodes: Number(ep?.n ?? 0), movies: Number(mv?.n ?? 0), shows: Number(sh?.n ?? 0) };
+}
+
+
+// ---------------------------------------------------------------- learned links
+
+/** Remember real file links (from folder listings or plays), so Play never has to guess a file name. */
+export async function learnLinks(
+  userId: string,
+  showId: string,
+  items: { season: number; episode: number; url: string }[],
+) {
+  await ready();
+  for (let i = 0; i < items.length; i += 100) {
+    const chunk = items.slice(i, i + 100).map((it) => ({
+      id: newId(),
+      userId,
+      showId,
+      season: it.season,
+      episode: it.episode,
+      url: it.url,
+      seenAt: now(),
+    }));
+    await db
+      .insert(links)
+      .values(chunk)
+      .onConflictDoUpdate({ target: [links.showId, links.season, links.episode], set: { url: sql`excluded.url`, seenAt: sql`excluded.seen_at` } });
+  }
+}
+
+// ---------------------------------------------------------------- episode list
+
+export type SeasonRow = {
+  episode: number;
+  name: string | null;
+  overview: string | null;
+  runtime: number | null;
+  airDate: string | null;
+  /** Scheduled but not out yet. */
+  unaired: boolean;
+  watched: boolean;
+  episodeId: string | null;
+  url: string | null;
+  resumeSeconds: number | null;
+};
+
+/** Every episode of a season: TMDB titles/summaries merged with what the user has watched and the best link for each. */
+export async function getSeasonRows(userId: string, showId: string, season: number): Promise<SeasonRow[] | null> {
+  const detail = await getShowDetail(userId, showId);
+  if (!detail) return null;
+  const { show } = detail;
+  const tmdb: SeasonEpisode[] =
+    show.tmdbId && show.tmdbId > 0 ? await getSeasonInfo(show.tmdbId, season).catch(() => []) : [];
+  const known = detail.seasons?.[season] ?? 0;
+  const watched = new Map(detail.episodes.filter((e) => e.season === season).map((e) => [e.episode, e]));
+  const learned = new Map(
+    (
+      await db
+        .select({ episode: links.episode, url: links.url })
+        .from(links)
+        .where(and(eq(links.showId, showId), eq(links.season, season)))
+    ).map((l) => [l.episode, l.url]),
+  );
+  const ref = await referenceUrl(showId, season);
+  const count = Math.max(known, tmdb.length, ...watched.keys(), 0);
+  const rows: SeasonRow[] = [];
+  for (let n = 1; n <= count; n++) {
+    const t = tmdb.find((x) => x.episode === n);
+    const w = watched.get(n);
+    rows.push({
+      episode: n,
+      name: t?.name ?? null,
+      overview: t?.overview || null,
+      runtime: t?.runtime ?? show.runtime ?? null,
+      airDate: t?.airDate ?? null,
+      unaired: t?.airDate ? Date.parse(t.airDate) > Date.now() : false,
+      watched: Boolean(w),
+      episodeId: w?.id ?? null,
+      url: w?.url ?? learned.get(n) ?? (ref && learned.size === 0 ? rewriteEpisodeUrl(ref, season, n) : null),
+      resumeSeconds: w?.resumeSeconds ?? null,
+    });
+  }
+  return rows;
+}
+
+// ---------------------------------------------------------------- queue
+
+/** The next few episodes after the current one, with links, for a VLC playlist. */
+export async function getQueue(
+  userId: string,
+  showId: string,
+  count = 5,
+): Promise<{ show: ShowCard; items: { season: number; episode: number; url: string; title: string | null }[] } | null> {
+  const detail = await getShowDetail(userId, showId);
+  if (!detail) return null;
+  const { show } = detail;
+  const seasons = parseSeasons(show);
+  const ctx = (await cardContexts(userId, [showId])).get(showId)!;
+  const ref = await referenceUrl(showId);
+  const items: { season: number; episode: number; url: string; title: string | null }[] = [];
+  let cur: { season: number; episode: number } | null =
+    show.nextSeason !== null && show.nextEpisode !== null ? { season: show.nextSeason, episode: show.nextEpisode } : null;
+  const titles = new Map<number, SeasonEpisode[]>();
+  while (cur && items.length < count) {
+    const at: { season: number; episode: number } = cur;
+    const key = cur.season + ":" + cur.episode;
+    // Once a season's folder listing has been seen, a missing file is really missing:
+    // guessing its name from another episode's would just produce a dead link.
+    const listingSeen = [...ctx.learned.keys()].some((k) => k.startsWith(cur!.season + ":"));
+    const url =
+      ctx.learned.get(key) ??
+      (items.length === 0 && (show.resumeSeconds || !listingSeen) ? show.nextUrl : null) ??
+      (listingSeen || !ref ? null : rewriteEpisodeUrl(ref, cur.season, cur.episode));
+    if (!url) break;
+    let title: string | null = null;
+    if (show.tmdbId && show.tmdbId > 0) {
+      if (!titles.has(cur.season)) titles.set(cur.season, await getSeasonInfo(show.tmdbId, cur.season).catch(() => []));
+      title = titles.get(cur.season)!.find((x) => x.episode === at.episode)?.name ?? null;
+    }
+    items.push({ season: cur.season, episode: cur.episode, url, title });
+    cur = episodeAfter(seasons, cur.season, cur.episode);
+  }
+  return { show, items };
+}
+
+// ---------------------------------------------------------------- resume & ratings
+
+/** Set (or clear, with null) where the user stopped in an episode or movie. */
+export async function setResume(userId: string, kind: "episode" | "movie", id: string, seconds: number | null) {
+  await ready();
+  const value = seconds && seconds > 0 ? Math.round(seconds) : null;
+  if (kind === "episode") {
+    await db.update(episodes).set({ resumeSeconds: value }).where(and(eq(episodes.id, id), eq(episodes.userId, userId)));
+  } else {
+    await db.update(movies).set({ resumeSeconds: value }).where(and(eq(movies.id, id), eq(movies.userId, userId)));
+  }
+}
+
+const urlKey = (u: string) => {
+  let x = u;
+  try {
+    x = decodeURIComponent(u);
+  } catch {
+    /* keep raw */
+  }
+  return x.replace(/^[a-z]+:\/\/[^/]+/i, "").toLowerCase();
+};
+
+/**
+ * A playback position reported by a player on the PC. Matches the file to an
+ * episode (or movie) we know, stores the position, and logs the episode once
+ * it is nearly finished. Returns what it matched, or null for unknown files.
+ */
+export async function reportProgress(
+  userId: string,
+  input: { url: string; seconds: number; length?: number | null },
+): Promise<{ kind: "episode" | "movie"; title: string; finished: boolean } | null> {
+  await ready();
+  const key = urlKey(input.url);
+  const done = input.length && input.length > 0 ? input.seconds / input.length >= 0.92 : false;
+
+  const eps = await db
+    .select({ id: episodes.id, showId: episodes.showId, season: episodes.season, episode: episodes.episode, url: episodes.url })
+    .from(episodes)
+    .where(and(eq(episodes.userId, userId), sql`${episodes.url} is not null`));
+  const hitEp = eps.find((e) => e.url && urlKey(e.url) === key);
+  if (hitEp) {
+    const show = await getShow(userId, hitEp.showId);
+    await setResume(userId, "episode", hitEp.id, done ? null : input.seconds);
+    return { kind: "episode", title: (show?.title ?? "") + " " + formatEpisode(hitEp.season, hitEp.episode), finished: done };
+  }
+
+  const learned = await db.select().from(links).where(eq(links.userId, userId));
+  const hitLink = learned.find((l) => urlKey(l.url) === key);
+  if (hitLink) {
+    const show = await getShow(userId, hitLink.showId);
+    const { episodeId } = await recordEpisode(userId, hitLink.showId, hitLink.season, hitLink.episode, hitLink.url);
+    await setResume(userId, "episode", episodeId, done ? null : input.seconds);
+    return { kind: "episode", title: (show?.title ?? "") + " " + formatEpisode(hitLink.season, hitLink.episode), finished: done };
+  }
+
+  const mv = await db.select().from(movies).where(and(eq(movies.userId, userId), sql`${movies.url} is not null`));
+  const hitMovie = mv.find((m) => m.url && urlKey(m.url) === key);
+  if (hitMovie) {
+    await setResume(userId, "movie", hitMovie.id, done ? null : input.seconds);
+    if (done && !hitMovie.watched) await setMovieWatched(userId, hitMovie.id, true);
+    return { kind: "movie", title: hitMovie.title, finished: done };
+  }
+  return null;
+}
+
+export async function setShowRating(userId: string, showId: string, rating: number | null) {
+  await ready();
+  const value = rating && rating >= 1 && rating <= 5 ? Math.round(rating) : null;
+  await db.update(shows).set({ rating: value }).where(and(eq(shows.id, showId), eq(shows.userId, userId)));
+}
+
+export async function setMovieRating(userId: string, movieId: string, rating: number | null) {
+  await ready();
+  const value = rating && rating >= 1 && rating <= 5 ? Math.round(rating) : null;
+  await db.update(movies).set({ rating: value }).where(and(eq(movies.id, movieId), eq(movies.userId, userId)));
 }

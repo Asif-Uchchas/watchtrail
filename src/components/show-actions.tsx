@@ -1,16 +1,20 @@
 "use client";
 
-import { Check, Loader2, Pencil, RefreshCw, Trash2, Undo2, X } from "lucide-react";
+import { Check, Loader2, Pencil, RefreshCw, Star, Trash2, Undo2, X } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
   clearSeasonLog,
+  clearStoppedAt,
   editShow,
   logProgress,
   markEpisode,
+  rateMovie,
+  rateShow,
   refreshShowInfo,
   removeMovie,
   removeShow,
+  setStoppedAt,
   toggleMovie,
   unmarkEpisode,
 } from "@/app/actions";
@@ -44,7 +48,7 @@ export function MarkWatchedButton({
       variant="secondary"
       disabled={pending}
       className={className}
-      onClick={() => run(() => markEpisode(showId, season, episode, url))}
+      onClick={() => run(() => markEpisode(showId, season, episode, url, true))}
     >
       {pending ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
       {label}
@@ -290,5 +294,129 @@ export function MovieActions({ movieId, watched }: { movieId: string; watched: b
         {armed ? "Sure?" : <span className="sr-only">Remove</span>}
       </button>
     </div>
+  );
+}
+
+
+/** "3:10", "1:02:10" or plain minutes -> seconds; null when it isn't a time. */
+function parseClock(text: string): number | null {
+  const parts = text.trim().split(":").map((p) => Number(p));
+  if (!parts.length || parts.length > 3 || parts.some((n) => !Number.isFinite(n) || n < 0)) return null;
+  if (parts.length === 1) return Math.round(parts[0] * 60);
+  return parts.reduce((acc, n) => acc * 60 + n, 0);
+}
+
+export function StoppedAtForm({
+  showId,
+  season,
+  episode,
+  label,
+}: {
+  showId: string;
+  season: number;
+  episode: number;
+  label: string;
+}) {
+  const { run, pending } = useActionToast();
+  return (
+    <form
+      className="flex flex-wrap items-end gap-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const form = e.currentTarget;
+        const seconds = parseClock(String(new FormData(form).get("at") ?? ""));
+        if (seconds === null) return void toast.error("Type a time like 21:30 or 1:05:00.");
+        void run(() => setStoppedAt(showId, season, episode, seconds), { onSuccess: () => form.reset() });
+      }}
+    >
+      <label className="w-28">
+        <span className="mb-1.5 block text-xs text-muted">{label}</span>
+        <input name="at" inputMode="numeric" placeholder="21:30" required className={inputClass} />
+      </label>
+      <Button type="submit" variant="secondary" size="md" disabled={pending} className="h-11">
+        {pending ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+        Save
+      </Button>
+    </form>
+  );
+}
+
+export function ClearStoppedButton({ episodeId }: { episodeId: string }) {
+  const { run, pending } = useActionToast();
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      onClick={() => run(() => clearStoppedAt(episodeId))}
+      className="text-[13px] text-faint transition hover:text-ink"
+    >
+      Start over
+    </button>
+  );
+}
+
+export function StarRating({ kind, id, value }: { kind: "show" | "movie"; id: string; value: number | null }) {
+  const { run, pending } = useActionToast();
+  return (
+    <div className="inline-flex items-center" role="radiogroup" aria-label="Your rating">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          type="button"
+          role="radio"
+          aria-checked={value === n}
+          aria-label={`${n} star${n > 1 ? "s" : ""}`}
+          disabled={pending}
+          onClick={() => run(() => (kind === "show" ? rateShow(id, value === n ? null : n) : rateMovie(id, value === n ? null : n)))}
+          className="grid size-8 place-items-center text-faint transition hover:text-accent-strong"
+        >
+          <Star className={`size-[18px] ${value && n <= value ? "fill-accent text-accent" : ""}`} />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Round check / open circle that logs or un-logs one episode in the season list. */
+export function EpisodeToggle({
+  showId,
+  season,
+  episode,
+  episodeId,
+  url,
+  isNext,
+}: {
+  showId: string;
+  season: number;
+  episode: number;
+  episodeId: string | null;
+  url: string | null;
+  isNext: boolean;
+}) {
+  const { run, pending } = useActionToast();
+  const watched = Boolean(episodeId);
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      title={watched ? "Mark as not watched" : "Mark as watched"}
+      aria-label={watched ? "Mark as not watched" : "Mark as watched"}
+      onClick={() => run(() => (episodeId ? unmarkEpisode(episodeId) : markEpisode(showId, season, episode, url, true)))}
+      className="grid size-8 shrink-0 place-items-center rounded-full"
+    >
+      {pending ? (
+        <Loader2 className="size-5 animate-spin text-muted" />
+      ) : watched ? (
+        <span className="grid size-[22px] place-items-center rounded-full bg-surface-3 text-ink">
+          <Check className="size-3.5" strokeWidth={2.5} />
+        </span>
+      ) : isNext ? (
+        <span className="grid size-[22px] place-items-center rounded-full border-2 border-accent">
+          <span className="size-2 rounded-full bg-accent" />
+        </span>
+      ) : (
+        <span className="size-[22px] rounded-full border-2 border-line-strong" />
+      )}
+    </button>
   );
 }

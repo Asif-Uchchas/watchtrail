@@ -61,7 +61,34 @@ export type TvInfo = {
   status: string | null;
   /** Typical episode length in minutes, when TMDB knows it. */
   runtime: number | null;
+  /** Latest aired and next scheduled episode, for new-episode alerts. */
+  air: AirInfo | null;
 };
+
+export type AirEpisode = { s: number; e: number; date: string | null };
+export type AirInfo = { last: AirEpisode | null; next: AirEpisode | null };
+
+type TmdbEpisodeRef = { season_number?: number; episode_number?: number; air_date?: string | null } | null;
+function airRef(ref: TmdbEpisodeRef | undefined): AirEpisode | null {
+  if (!ref || !ref.season_number || !ref.episode_number) return null;
+  return { s: ref.season_number, e: ref.episode_number, date: ref.air_date ?? null };
+}
+
+export type SeasonEpisode = { episode: number; name: string; overview: string; runtime: number | null; airDate: string | null };
+
+/** Episode titles and summaries for one season (cached a day by Next's fetch cache). */
+export async function getSeasonInfo(tmdbId: number, season: number): Promise<SeasonEpisode[]> {
+  const data = await tmdb<{
+    episodes?: { episode_number: number; name?: string; overview?: string; runtime?: number | null; air_date?: string | null }[];
+  }>(`/tv/${tmdbId}/season/${season}`);
+  return (data?.episodes ?? []).map((e) => ({
+    episode: e.episode_number,
+    name: e.name ?? "",
+    overview: e.overview ?? "",
+    runtime: e.runtime ?? null,
+    airDate: e.air_date ?? null,
+  }));
+}
 
 /** Look up a show and its season sizes. Returns null when TMDB is off or nothing matched. */
 export async function findTvInfo(title: string, year: string | null, knownId?: number | null): Promise<TvInfo | null> {
@@ -71,7 +98,8 @@ export async function findTvInfo(title: string, year: string | null, knownId?: n
     poster_path?: string | null;
     status?: string;
     episode_run_time?: number[];
-    last_episode_to_air?: { runtime?: number | null } | null;
+    last_episode_to_air?: ({ runtime?: number | null } & NonNullable<TmdbEpisodeRef>) | null;
+    next_episode_to_air?: TmdbEpisodeRef;
     seasons?: { season_number: number; episode_count: number }[];
   }>(`/tv/${id}`);
   if (!details) return null;
@@ -85,5 +113,6 @@ export async function findTvInfo(title: string, year: string | null, knownId?: n
     seasons,
     status: details.status ?? null,
     runtime: details.episode_run_time?.find((m) => m > 0) ?? details.last_episode_to_air?.runtime ?? null,
+    air: { last: airRef(details.last_episode_to_air), next: airRef(details.next_episode_to_air) },
   };
 }

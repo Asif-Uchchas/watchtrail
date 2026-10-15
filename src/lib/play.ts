@@ -23,25 +23,26 @@ export function detectPlatform(userAgent: string): Platform {
   return "desktop";
 }
 
-export function androidVlcIntent(mediaUrl: string): string {
+export function androidVlcIntent(mediaUrl: string, startSeconds?: number): string {
   const url = new URL(mediaUrl);
   const scheme = url.protocol.replace(":", "");
   const rest = mediaUrl.slice(url.protocol.length + 2); // drop "http://"
   const fallback = encodeURIComponent("https://play.google.com/store/apps/details?id=org.videolan.vlc");
-  return `intent://${rest}#Intent;scheme=${scheme};type=video/*;package=org.videolan.vlc;S.browser_fallback_url=${fallback};end`;
+  return `intent://${rest}#Intent;scheme=${scheme};type=video/*;package=org.videolan.vlc;${startSeconds && startSeconds > 0 ? `l.position=${Math.round(startSeconds * 1000)};` : ""}S.browser_fallback_url=${fallback};end`;
 }
 
 export function iosVlcUrl(mediaUrl: string): string {
   return `vlc-x-callback://x-callback-url/stream?url=${encodeURIComponent(mediaUrl)}`;
 }
 
-export function playlistUrl(mediaUrl: string, title: string): string {
+export function playlistUrl(mediaUrl: string, title: string, startSeconds?: number): string {
   const params = new URLSearchParams({ u: mediaUrl, t: title });
+  if (startSeconds && startSeconds > 0) params.set("s", String(Math.round(startSeconds)));
   return `/api/playlist?${params}`;
 }
 
-export function vlcLinkFor(platform: Platform, mediaUrl: string, title: string): string {
-  if (platform === "android") return androidVlcIntent(mediaUrl);
+export function vlcLinkFor(platform: Platform, mediaUrl: string, title: string, startSeconds?: number): string {
+  if (platform === "android") return androidVlcIntent(mediaUrl, startSeconds);
   if (platform === "ios") return iosVlcUrl(mediaUrl);
-  return playlistUrl(mediaUrl, title);
+  return playlistUrl(mediaUrl, title, startSeconds);
 }

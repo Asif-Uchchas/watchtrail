@@ -3,22 +3,23 @@
 @theme inline {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --font-display: var(--font-serif-display);
+  /* Headings use the same family as the body: one typeface, weight does the work. */
+  --font-display: var(--font-geist-sans);
 
-  --color-bg: #08080a;
-  --color-surface: #111114;
-  --color-surface-2: #18181d;
-  --color-surface-3: #212128;
-  --color-line: #26262e;
-  --color-line-strong: #34343e;
-  --color-ink: #ededf0;
-  --color-muted: #8d8d99;
-  --color-faint: #5d5d68;
-  --color-accent: #f5b544;
-  --color-accent-strong: #ffc85c;
-  --color-accent-ink: #1c1405;
+  --color-bg: #0e0f10;
+  --color-surface: #151617;
+  --color-surface-2: #1a1b1d;
+  --color-surface-3: #232527;
+  --color-line: #232527;
+  --color-line-strong: #34373a;
+  --color-ink: #ececec;
+  --color-muted: #9a9fa5;
+  --color-faint: #70757b;
+  --color-accent: #f2b84b;
+  --color-accent-strong: #ffca66;
+  --color-accent-ink: #1a1203;
   --color-danger: #f0626b;
-  --color-success: #4ade80;
+  --color-success: #5fcf8a;
 }
 
 :root {
@@ -26,33 +27,34 @@
 }
 
 html {
-  background: #08080a;
+  background: #0e0f10;
   -webkit-tap-highlight-color: transparent;
 }
 
 body {
-  background:
-    radial-gradient(1200px 500px at 10% -10%, rgb(245 181 68 / 0.07), transparent 60%),
-    radial-gradient(900px 400px at 100% 0%, rgb(120 120 255 / 0.04), transparent 60%),
-    #08080a;
-  background-attachment: fixed;
-  color: #ededf0;
+  background: #0e0f10;
+  color: #ececec;
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
+.font-display {
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
 ::selection {
-  background: rgb(245 181 68 / 0.35);
+  background: rgb(242 184 75 / 0.35);
   color: #fff;
 }
 
 :focus-visible {
-  outline: 2px solid #f5b544;
+  outline: 2px solid #f2b84b;
   outline-offset: 2px;
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #34343e transparent;
+  scrollbar-color: #34373a transparent;
 }
 
 @utility no-scrollbar {
@@ -65,7 +67,7 @@ body {
 @keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
@@ -74,7 +76,7 @@ body {
 }
 
 @utility animate-rise {
-  animation: rise 0.35s ease-out both;
+  animation: rise 0.25s ease-out both;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -20,8 +20,11 @@ import {
   recordEpisode,
   refreshTvInfo,
   removeEpisode,
+  setMovieRating,
   setMovieWatched,
+  setResume,
   setSampleUrl,
+  setShowRating,
   updateShow,
   upsertMovie,
   upsertShow,
@@ -197,6 +200,8 @@ export async function markEpisode(
   season: number,
   episode: number,
   url: string | null,
+  /** True for "Mark watched": also forgets any saved stop position. */
+  finished = false,
 ): Promise<ActionResult> {
   const user = await requireUser();
   const show = await getShow(user.id, showId);
@@ -205,6 +210,7 @@ export async function markEpisode(
     return { ok: false, error: "Season and episode must be whole numbers." };
   }
   const { episodeId, alreadyWatched } = await recordEpisode(user.id, show.id, season, episode, url);
+  if (finished) await setResume(user.id, "episode", episodeId, null);
   refreshAll();
   return {
     ok: true,
@@ -371,4 +377,57 @@ export async function importBackup(formData: FormData): Promise<ActionResult> {
     ok: true,
     message: `Imported ${result.episodes} episodes, ${result.movies} movies and ${result.shows} new shows.`,
   };
+}
+
+// ---------------------------------------------------------------- resume & ratings
+
+/** "I stopped at 21:30": logs the episode if needed and remembers the position. */
+export async function setStoppedAt(
+  showId: string,
+  season: number,
+  episode: number,
+  seconds: number,
+): Promise<ActionResult> {
+  const user = await requireUser();
+  const show = await getShow(user.id, showId);
+  if (!show) return { ok: false, error: "Show not found." };
+  if (!validEpisode(season, episode)) return { ok: false, error: "Pick a valid season and episode." };
+  if (!Number.isFinite(seconds) || seconds < 0 || seconds > 86_400) return { ok: false, error: "That time doesn't look right." };
+  const { episodeId } = await recordEpisode(user.id, show.id, season, episode, null);
+  await setResume(user.id, "episode", episodeId, seconds || null);
+  refreshAll();
+  return {
+    ok: true,
+    message: seconds
+      ? `Saved: ${show.title} ${formatEpisode(season, episode)} stopped at ${formatClock(seconds)}.`
+      : "Position cleared.",
+  };
+}
+
+function formatClock(total: number): string {
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = Math.floor(total % 60);
+  return h ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${m}:${String(s).padStart(2, "0")}`;
+}
+
+export async function clearStoppedAt(episodeId: string): Promise<ActionResult> {
+  const user = await requireUser();
+  await setResume(user.id, "episode", episodeId, null);
+  refreshAll();
+  return { ok: true, message: "Position cleared." };
+}
+
+export async function rateShow(showId: string, rating: number | null): Promise<ActionResult> {
+  const user = await requireUser();
+  await setShowRating(user.id, showId, rating);
+  refreshAll();
+  return { ok: true, message: rating ? `Rated ${rating} of 5.` : "Rating removed." };
+}
+
+export async function rateMovie(movieId: string, rating: number | null): Promise<ActionResult> {
+  const user = await requireUser();
+  await setMovieRating(user.id, movieId, rating);
+  refreshAll();
+  return { ok: true, message: rating ? `Rated ${rating} of 5.` : "Rating removed." };
 }

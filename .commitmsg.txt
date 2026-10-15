@@ -1,0 +1,12 @@
+Redesign UI and add episode list, resume, queue, ratings and PC bridge
+
+- Calmer dark UI: one accent, Geist type, list-based home and show pages
+- Season episode list with TMDB titles and spoiler-safe summaries
+- Learn real file links from folder listings so Play works when file names contain titles
+- Resume position (stopped at), start-time in desktop playlists and Android intent
+- New-episode badges from TMDB air dates, refreshed lazily
+- Queue 5 playlist, star ratings
+- scripts/vlc-bridge.mjs reports VLC position to /api/ext/progress
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01NWhmgR4qaoc3gnxLAEbSwL

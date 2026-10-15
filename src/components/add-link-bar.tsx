@@ -54,19 +54,19 @@ export function AddLinkBar({
           : { label: "Add", mode: "watched" as const };
   const secondary =
     parsed?.kind === "episode"
-      ? { label: "Just add the show", mode: "track" as const }
+      ? { label: "Just track", mode: "track" as const }
       : parsed?.kind === "movie"
-        ? { label: "Add to watchlist", mode: "track" as const }
+        ? { label: "Watchlist", mode: "track" as const }
         : null;
 
   return (
-    <div className="rounded-2xl border border-line bg-surface/80 p-3 shadow-[0_20px_60px_-30px_rgb(0_0_0/0.8)] backdrop-blur sm:p-4">
+    <div>
       <form
         onSubmit={(e) => {
           e.preventDefault();
           submit(primary.mode);
         }}
-        className="flex flex-col gap-3 sm:flex-row"
+        className="flex flex-col gap-2 sm:flex-row"
       >
         <label className="relative flex-1">
           <span className="sr-only">Episode, movie or show folder link</span>
@@ -79,41 +79,40 @@ export function AddLinkBar({
             inputMode="url"
             autoComplete="off"
             spellCheck={false}
-            placeholder="Paste the link you'd open in VLC…"
-            className="h-12 w-full rounded-xl border border-line bg-surface-2 pl-10 pr-12 text-[15px] text-ink outline-none transition placeholder:text-faint focus:border-accent/70 focus:bg-surface-3 focus:ring-4 focus:ring-accent/10"
+            placeholder="Paste a link from your FTP server"
+            className="h-12 w-full rounded-[10px] border border-line-strong bg-surface pl-10 pr-12 text-[15px] text-ink outline-none transition placeholder:text-faint focus:border-accent/70"
           />
           <button
             type="button"
             onClick={paste}
             title="Paste from clipboard"
-            className="absolute right-1.5 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-lg text-muted transition hover:bg-surface-3 hover:text-ink"
+            className="absolute right-1 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-lg text-muted transition hover:bg-surface-2 hover:text-ink"
           >
             <ClipboardPaste className="size-4" />
+            <span className="sr-only">Paste from clipboard</span>
           </button>
         </label>
         <div className="flex gap-2">
-          {secondary ? (
-            <Button
-              type="button"
-              size="lg"
-              variant="secondary"
-              disabled={pending}
-              onClick={() => submit(secondary.mode)}
-              className="flex-1 sm:flex-none"
-            >
-              {secondary.label}
-            </Button>
-          ) : null}
           <Button
             type="submit"
-            size="lg"
             variant="primary"
             disabled={pending || !parsed || parsed.kind === "error"}
-            className="flex-1 sm:flex-none sm:min-w-36"
+            className="h-12 flex-1 sm:min-w-36 sm:flex-none"
           >
             {pending ? <Loader2 className="size-4 animate-spin" /> : null}
             {primary.label}
           </Button>
+          {secondary ? (
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={pending}
+              onClick={() => submit(secondary.mode)}
+              className="h-12 flex-1 sm:flex-none"
+            >
+              {secondary.label}
+            </Button>
+          ) : null}
         </div>
       </form>
 
@@ -145,18 +144,14 @@ export function AddLinkBar({
             </span>
           )}
         </div>
-      ) : (
-        <p className="mt-3 px-1 text-[13px] text-faint">
-          Works with episode links, movie links and show folders from Circle FTP or any file server.
-        </p>
-      )}
+      ) : null}
     </div>
   );
 }
 
 function KindIcon({ kind }: { kind: "episode" | "movie" | "show" }) {
   const Icon = kind === "episode" ? Tv : kind === "movie" ? Film : FolderOpen;
-  return <Icon className="size-4 shrink-0 text-accent" aria-hidden />;
+  return <Icon className="size-4 shrink-0 text-muted" aria-hidden />;
 }
 
 function Pill({ children, muted }: { children: React.ReactNode; muted?: boolean }) {
@@ -164,7 +159,7 @@ function Pill({ children, muted }: { children: React.ReactNode; muted?: boolean 
     <span
       className={cx(
         "shrink-0 rounded-md px-1.5 py-0.5 font-mono text-[11px] tracking-wide",
-        muted ? "bg-surface-3 text-muted" : "bg-accent/15 text-accent",
+        muted ? "bg-surface-3 text-muted" : "bg-surface-3 text-accent",
       )}
     >
       {children}

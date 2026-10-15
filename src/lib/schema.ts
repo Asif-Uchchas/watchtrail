@@ -33,6 +33,12 @@ export const shows = sqliteTable(
     airStatus: text("air_status"),
     /** Typical episode length in minutes (TMDB), for watch-time stats. */
     runtime: integer("runtime"),
+    /** JSON from TMDB: {"last":{"s":2,"e":3,"date":"..."},"next":{...}} for new-episode alerts. */
+    airJson: text("air_json"),
+    /** When TMDB data was last refreshed. */
+    infoAt: integer("info_at", { mode: "timestamp_ms" }),
+    /** 1-5 stars. */
+    rating: integer("rating"),
     status: text("status").$type<ShowStatus>().notNull().default("watching"),
     lastSeason: integer("last_season"),
     lastEpisode: integer("last_episode"),
@@ -58,6 +64,8 @@ export const episodes = sqliteTable(
     url: text("url"),
     /** Logged in bulk by "mark everything up to here"; kept out of the History feed. */
     backfilled: integer("backfilled", { mode: "boolean" }).notNull().default(false),
+    /** Where the user stopped watching (seconds); cleared once finished. */
+    resumeSeconds: integer("resume_seconds"),
     watchedAt: integer("watched_at", { mode: "timestamp_ms" }).notNull(),
   },
   (t) => [
@@ -77,6 +85,8 @@ export const movies = sqliteTable(
     url: text("url"),
     posterUrl: text("poster_url"),
     watched: integer("watched", { mode: "boolean" }).notNull().default(true),
+    rating: integer("rating"),
+    resumeSeconds: integer("resume_seconds"),
     watchedAt: integer("watched_at", { mode: "timestamp_ms" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   },
@@ -84,6 +94,21 @@ export const movies = sqliteTable(
     uniqueIndex("movies_user_title").on(t.userId, t.titleKey, t.year),
     index("movies_user_watched").on(t.userId, t.watchedAt),
   ],
+);
+
+export const links = sqliteTable(
+  "links",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    showId: text("show_id").notNull().references(() => shows.id, { onDelete: "cascade" }),
+    season: integer("season").notNull(),
+    episode: integer("episode").notNull(),
+    /** The real file link, seen in a folder listing (so Play never has to guess the file name). */
+    url: text("url").notNull(),
+    seenAt: integer("seen_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [uniqueIndex("links_show_se").on(t.showId, t.season, t.episode)],
 );
 
 export type User = typeof users.$inferSelect;
@@ -153,6 +178,16 @@ export const SCHEMA_SQL = [
   )`,
   `CREATE UNIQUE INDEX IF NOT EXISTS movies_user_title ON movies(user_id, title_key, year)`,
   `CREATE INDEX IF NOT EXISTS movies_user_watched ON movies(user_id, watched_at)`,
+  `CREATE TABLE IF NOT EXISTS links (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    show_id TEXT NOT NULL REFERENCES shows(id) ON DELETE CASCADE,
+    season INTEGER NOT NULL,
+    episode INTEGER NOT NULL,
+    url TEXT NOT NULL,
+    seen_at INTEGER NOT NULL
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS links_show_se ON links(show_id, season, episode)`,
 ];
 
 /**
@@ -167,5 +202,11 @@ export const MIGRATIONS_SQL = [
   `ALTER TABLE episodes ADD COLUMN backfilled INTEGER NOT NULL DEFAULT 0`,
   `ALTER TABLE shows ADD COLUMN runtime INTEGER`,
   `ALTER TABLE users ADD COLUMN api_token TEXT`,
+  `ALTER TABLE shows ADD COLUMN air_json TEXT`,
+  `ALTER TABLE shows ADD COLUMN info_at INTEGER`,
+  `ALTER TABLE shows ADD COLUMN rating INTEGER`,
+  `ALTER TABLE episodes ADD COLUMN resume_seconds INTEGER`,
+  `ALTER TABLE movies ADD COLUMN rating INTEGER`,
+  `ALTER TABLE movies ADD COLUMN resume_seconds INTEGER`,
   `CREATE UNIQUE INDEX IF NOT EXISTS users_api_token ON users(api_token)`,
 ];
