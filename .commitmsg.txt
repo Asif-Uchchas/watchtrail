@@ -1,6 +1,6 @@
-Add double-click launcher for the VLC bridge and fix setup docs
+Show saved watch position on folder listings
 
-The bridge now asks for its settings once and remembers them in the user's home folder.
+The browser helper now marks partly watched files with "stopped at mm:ss".
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01NWhmgR4qaoc3gnxLAEbSwL

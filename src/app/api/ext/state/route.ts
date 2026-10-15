@@ -1,4 +1,4 @@
-import { userIdForToken, watchedAmong } from "@/lib/ext";
+import { resumeAmong, userIdForToken, watchedAmong } from "@/lib/ext";
 
 export const dynamic = "force-dynamic";
 
@@ -18,5 +18,8 @@ export async function POST(request: Request) {
   if (!userId) return Response.json({ error: "Bad token" }, { status: 401, headers: CORS });
   const body = (await request.json().catch(() => null)) as { urls?: unknown } | null;
   const urls = Array.isArray(body?.urls) ? body.urls.filter((u): u is string => typeof u === "string").slice(0, 1000) : [];
-  return Response.json({ watched: await watchedAmong(userId, urls) }, { headers: CORS });
+  return Response.json(
+    { watched: await watchedAmong(userId, urls), resume: await resumeAmong(userId, urls) },
+    { headers: CORS },
+  );
 }

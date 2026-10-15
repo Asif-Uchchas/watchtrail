@@ -11,7 +11,7 @@ export function GET(request: Request) {
   const script = `// ==UserScript==
 // @name         Watchtrail for FTP listings
 // @namespace    ${origin}
-// @version      1.1
+// @version      1.2
 // @description  Shows what you have watched in FTP/h5ai file listings and logs episodes with one click.
 // @match        *://*.circleftp.net/*
 // @match        *://circleftp.net/*
@@ -76,7 +76,13 @@ export function GET(request: Request) {
     pill.style.color = bad ? "#ff8a80" : "#f5b544";
   }
 
-  function badge(a, watched, message) {
+  function clock(s) {
+    s = Math.round(s);
+    var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+    return (h ? h + ":" + (m < 10 ? "0" : "") + m : m) + ":" + (x < 10 ? "0" : "") + x;
+  }
+
+  function badge(a, watched, message, resume) {
     var old = a.parentNode.querySelector(".wt-badge[data-for='" + a.dataset.wt + "']");
     if (old) old.remove();
     var b = document.createElement("button");
@@ -84,7 +90,7 @@ export function GET(request: Request) {
     b.className = "wt-badge";
     b.dataset.for = a.dataset.wt;
     b.style.cssText = "margin-left:8px;padding:1px 8px;border-radius:999px;border:1px solid " + (watched ? "#4ade8066" : "#f5b54488") + ";background:" + (watched ? "#4ade8022" : "#f5b54422") + ";color:" + (watched ? "#4ade80" : "#f5b544") + ";font:600 11px system-ui;cursor:pointer";
-    b.textContent = watched ? "\\u2713 watched" : "+ log";
+    b.textContent = resume ? "\\u25B6 stopped at " + clock(resume) : watched ? "\\u2713 watched" : "+ log";
     b.title = message || (watched ? "Already in Watchtrail" : "Mark as watched in Watchtrail");
     if (!watched) {
       b.onclick = function (ev) {
@@ -114,7 +120,8 @@ export function GET(request: Request) {
       if (r.status === 401) { status("bad token", true); links.forEach(function (a) { a.removeAttribute("data-wt"); }); return; }
       var seen = {};
       ((r.json && r.json.watched) || []).forEach(function (u) { seen[u] = true; });
-      links.forEach(function (a) { badge(a, Boolean(seen[a.href])); });
+      var resume = (r.json && r.json.resume) || {};
+      links.forEach(function (a) { badge(a, Boolean(seen[a.href]), null, resume[a.href]); });
       status("connected");
       // Tell Watchtrail the real file names, so Play never has to guess them.
       call("/api/ext/links", { urls: links.map(function (a) { return a.href; }).slice(0, 400) });
