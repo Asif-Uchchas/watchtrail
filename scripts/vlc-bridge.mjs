@@ -16,15 +16,39 @@
  * Optional: VLC_PORT (default 8080), POLL_SECONDS (default 5), SAVE_EVERY (default 15).
  */
 
-const base = (process.env.WATCHTRAIL_URL || "").replace(/\/+$/, "");
-const token = process.env.WATCHTRAIL_TOKEN || "";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import readline from "node:readline/promises";
+
+// Settings come from environment variables, or from ~/.watchtrail-bridge.json.
+// If neither has them, the script asks once and saves the answers there (on this PC only).
+const configPath = path.join(os.homedir(), ".watchtrail-bridge.json");
+let saved = {};
+try {
+  saved = JSON.parse(fs.readFileSync(configPath, "utf8"));
+} catch {
+  /* first run */
+}
+let base = (process.env.WATCHTRAIL_URL || saved.url || "").replace(/\/+$/, "");
+let token = process.env.WATCHTRAIL_TOKEN || saved.token || "";
+let vlcPassword = process.env.VLC_PASSWORD || saved.vlcPassword || "";
 const vlcPort = process.env.VLC_PORT || "8080";
-const vlcPassword = process.env.VLC_PASSWORD || "";
+
+if (!base || !token || !vlcPassword) {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  console.log("First-time setup (saved to " + configPath + "):");
+  if (!base) base = ((await rl.question("Watchtrail address [https://watch-trail.vercel.app]: ")).trim() || "https://watch-trail.vercel.app").replace(/\/+$/, "");
+  if (!token) token = (await rl.question("Token from Watchtrail > Settings (starts with wt_): ")).trim();
+  if (!vlcPassword) vlcPassword = (await rl.question("VLC web interface password: ")).trim();
+  rl.close();
+  fs.writeFileSync(configPath, JSON.stringify({ url: base, token, vlcPassword }, null, 2));
+}
 const pollMs = Math.max(2, Number(process.env.POLL_SECONDS) || 5) * 1000;
 const saveEvery = Math.max(5, Number(process.env.SAVE_EVERY) || 15);
 
 if (!base || !token || !vlcPassword) {
-  console.error("Set WATCHTRAIL_URL, WATCHTRAIL_TOKEN and VLC_PASSWORD (see the comment at the top of this file).");
+  console.error("Missing settings. Delete " + configPath + " and run again.");
   process.exit(1);
 }
 

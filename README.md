@@ -27,8 +27,8 @@ Paste the link you'd normally open in VLC. Watchtrail works out the show, season
 
 `scripts/vlc-bridge.mjs` watches VLC on your PC and tells Watchtrail where you are in a file, so the position is saved automatically and a finished episode is logged without clicking anything. VLC on phones cannot report this, so on a phone use "stopped at" by hand.
 
-1. In VLC: Tools > Preferences > Show settings: All > Interface > Main interfaces, tick **Web**, then under **Lua** set an HTTP password. Restart VLC.
-2. Copy your token from Watchtrail > Settings, then run (Node 18+):
+1. In VLC: Tools > Preferences > Show settings: All. Under Interface > Main interfaces > Lua, set an HTTP password. Under Interface > Control interfaces, tick **Web**, or if there is no such box, type `http` into the empty extra-modules field. Restart VLC and check that http://localhost:8080 asks for the password.
+2. Double-click `scripts/watchtrail-bridge.cmd`. The first time it asks for your Watchtrail address, your token (Settings) and the VLC password, and remembers them in `~/.watchtrail-bridge.json` on that PC. Or run it by hand (Node 18+):
 
 ```bash
 WATCHTRAIL_URL=https://your-site.vercel.app WATCHTRAIL_TOKEN=wt_xxx VLC_PASSWORD=yourpass node scripts/vlc-bridge.mjs
