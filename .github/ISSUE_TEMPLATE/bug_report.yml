@@ -1,0 +1,56 @@
+name: Bug report
+description: Something does not work or shows the wrong episode
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you expect, and what did you get instead?
+    validations:
+      required: true
+  - type: textarea
+    id: link
+    attributes:
+      label: The link involved (if any)
+      description: Paste the file or folder link. Remove anything private such as passwords or tokens. The path alone is enough.
+      render: text
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where did it happen?
+      options:
+        - Android phone
+        - iPhone / iPad
+        - Windows PC
+        - Mac
+        - Linux
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and VLC version
+      placeholder: Chrome 130, VLC 3.0.23
+  - type: dropdown
+    id: part
+    attributes:
+      label: Which part?
+      options:
+        - Web app
+        - Browser helper (userscript)
+        - PC bridge for VLC
+        - Playing in VLC
+        - Setup / deployment
+        - Not sure
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. ...\n2. ..."
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error messages or screenshots
+      description: Please do not include your token or passwords.

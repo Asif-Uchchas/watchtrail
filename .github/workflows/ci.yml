@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run check:parser
+      - name: Build
+        run: npm run build
+        env:
+          AUTH_SECRET: ci-only-secret-not-used-at-runtime-0123456789
+          DATABASE_URL: file:data/ci.db

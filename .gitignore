@@ -42,4 +42,13 @@ next-env.d.ts
 
 # local database
 /data/
+
+# launch videos made with the brag skill
+/brag-output*/
+
+# agent skill links (the skill itself lives in .agents/)
+/.claude/skills/
+
+# scratch
+.commitmsg.txt
 !.env.example

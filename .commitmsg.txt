@@ -1,6 +1,12 @@
-Show saved watch position on folder listings
+Add open-source docs, CI, issue templates and the brag-slim skill
 
-The browser helper now marks partly watched files with "stopped at mm:ss".
+- Rewrite README for users, self-hosters and contributors
+- Add CONTRIBUTING, CODE_OF_CONDUCT, SECURITY and an MIT LICENSE
+- Add docs/ARCHITECTURE.md and docs/VLC-BRIDGE.md
+- Add GitHub Actions CI, issue forms and a pull request template
+- Add typecheck and check:parser scripts
+- Install the brag-slim agent skill (.agents/skills) for launch videos
+- Stop tracking the scratch commit message file
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01NWhmgR4qaoc3gnxLAEbSwL

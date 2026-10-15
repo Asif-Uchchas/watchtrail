@@ -1,98 +1,132 @@
+<div align="center">
+
 # Watchtrail
 
-Remember every episode and movie you watch from FTP servers (Circle FTP and other BDIX / h5ai file servers), and pick up where you left off on your phone or your PC.
+**Never lose your place in a series again.**
+Track what you watch from FTP / BDIX servers, and pick up where you left off on your phone or your PC.
 
-Paste the link you'd normally open in VLC. Watchtrail works out the show, season and episode from the link, logs it, and gives you a **Play next** button that opens the following episode in VLC and logs it in one tap. It stores links only, never video.
+[Features](#features) | [Quick start](#quick-start) | [Using it](#using-watchtrail) | [Deploy](#deploy-it-for-your-friends) | [Contributing](CONTRIBUTING.md)
+
+</div>
+
+---
+
+If you stream shows and movies from Circle FTP or another h5ai-style file server straight into VLC, you know the problem: the server has no idea what you watched. Two weeks later you are scrolling a folder of 24 files trying to remember whether you finished episode 11.
+
+Watchtrail fixes that. Paste the link you would normally open in VLC, and it works out the show, season and episode, logs it, and gives you a **Play next** button. It stores links and small bits of metadata only. It never touches or stores video.
 
 ## Features
 
-- **Paste any link**: episode files (`house.s02e05...mkv`, `2x05`, `Season 2/05.mkv`), movie files, or show folders. A live preview shows what was detected before you save.
-- **Play next**: guesses the next episode's link from the last one, opens it in VLC and logs it. The season folder is always one click away for the end of a season.
-- **Works on every device**:
-  - Android opens VLC directly; the app installs to the home screen and appears in the **Share** menu.
-  - iPhone/iPad opens VLC via its URL scheme.
-  - Desktop downloads a one-line `.m3u` that VLC opens.
-- **Set your place**: log "I'm at S04E10" for shows you started before Watchtrail. Watchtrail builds the link for that episode from any other one it knows, including switching season folders.
-- Show statuses (Watching, On hold, Finished, Dropped), search, a movie watchlist, a day-by-day history, and undo on every log.
-- Accounts, so friends can use the same server with their own lists.
-- Optional posters from TMDB.
-- **Episode list** per season with TMDB titles and summaries (shown only for episodes you have reached, so no spoilers), a tick to log or un-log any episode, and Play on each row.
-- **Real file names, learned**: with the browser helper (Settings), every folder page you open teaches Watchtrail the exact file name of each episode. Play uses those, so shows whose file names contain the episode title still work.
-- **Resume where you stopped**: type "stopped at 21:30" on the show page, and Play / Resume starts 5 seconds earlier (desktop playlists and Android VLC; iOS VLC has no start-time option).
-- **New-episode badges** for shows that are still airing, refreshed from TMDB about twice a day.
+**Tracking**
+- **Paste any link.** Episode files (`house.s02e05...mkv`, `2x05`, `Season 2/05.mkv`), movie files and show folders all work, with a live preview before you save.
+- **Set your place.** Started a show before Watchtrail? Say "I'm at S04E10" and it marks everything before it as watched, using TMDB episode counts and rolling over seasons correctly.
+- **Statuses, search, history and stats.** Watching, On hold, Finished, Dropped; a day-by-day history; watch time, streaks and top shows.
+- **Undo on every action**, plus JSON backup export and import.
+
+**Playing**
+- **Play next / Resume.** One tap opens the next episode in VLC and logs it. If you stopped partway, it becomes **Resume** and starts 5 seconds before where you stopped.
+- **Episode list per season** with TMDB titles and summaries (summaries are hidden until you have reached that episode, so no spoilers) and a tick to log or un-log any episode.
 - **Queue 5**: a playlist of the next five episodes for VLC on desktop.
-- **Star ratings** for shows.
+- **Real file names, learned.** With the browser helper, every folder page you open teaches Watchtrail the exact file name of each episode, so shows whose files contain the episode title still work.
+- **New-episode badges** for shows that are still airing, and **star ratings**.
 
-## PC bridge for VLC (optional)
+**Everywhere**
+- Android opens VLC directly, iPhone/iPad uses VLC's URL scheme, and desktop gets a one-line `.m3u`.
+- Installs to the home screen and appears in the Android **Share** menu (needs https).
+- **Multi-user.** Friends can have their own accounts on the same server.
+- **Browser helper** (userscript) that shows a green check or "stopped at 20:30" next to files in the FTP listing itself.
+- **PC bridge** that tells Watchtrail where VLC is, so your position is saved automatically.
 
-`scripts/vlc-bridge.mjs` watches VLC on your PC and tells Watchtrail where you are in a file, so the position is saved automatically and a finished episode is logged without clicking anything. VLC on phones cannot report this, so on a phone use "stopped at" by hand.
+## Quick start
 
-1. In VLC: Tools > Preferences > Show settings: All. Under Interface > Main interfaces > Lua, set an HTTP password. Under Interface > Control interfaces, tick **Web**, or if there is no such box, type `http` into the empty extra-modules field. Restart VLC and check that http://localhost:8080 asks for the password.
-2. Double-click `scripts/watchtrail-bridge.cmd`. The first time it asks for your Watchtrail address, your token (Settings) and the VLC password, and remembers them in `~/.watchtrail-bridge.json` on that PC. Or run it by hand (Node 18+):
-
-```bash
-WATCHTRAIL_URL=https://your-site.vercel.app WATCHTRAIL_TOKEN=wt_xxx VLC_PASSWORD=yourpass node scripts/vlc-bridge.mjs
-```
-
-It only tracks streams (http, https, ftp) and only files Watchtrail already knows.
-
-## Run it locally
-
-Requires Node.js 20.9 or newer.
+Requires **Node.js 20.9 or newer**.
 
 ```bash
+git clone https://github.com/Asif-Uchchas/watchtrail.git
+cd watchtrail
 npm install
-cp .env.example .env.local   # then set AUTH_SECRET (command is in the file)
-npm run build
-npm start                    # http://localhost:3000
+cp .env.example .env.local     # then set AUTH_SECRET (the command is in the file)
+npm run dev                    # http://localhost:3000
 ```
 
-For development with hot reload use `npm run dev`.
+The first account you create is yours. Data lives in a single SQLite file at `data/watchtrail.db`, created on first start. Back it up by copying that file, or use **Settings > Export** in the app.
 
-The database is a single SQLite file at `data/watchtrail.db`, created automatically on first start. Back it up by copying that file.
+For a production-style run use `npm run build && npm start`.
 
-### Use it from your phone on the same Wi-Fi
+**On your phone, same Wi-Fi:** the server prints a **Network** address such as `http://192.168.0.107:3000`. Open it on your phone. If it does not load, allow Node.js through Windows Firewall for private networks. Home-screen install and the Share menu need https, so they work once deployed (below).
 
-`npm start` prints a **Network** address such as `http://192.168.0.107:3000`. Open it on your phone. If it doesn't load, allow Node.js through Windows Firewall for private networks.
+## Using Watchtrail
 
-Installing to the home screen and the Share-menu integration need **https**, so they work once deployed (below), not on the plain LAN address.
+1. On the FTP site, copy an episode's link (right-click > **Copy link address**, or long-press on a phone).
+2. Paste it into the box on the home screen and press **Mark watched**. Use **Just track** to add a show without logging an episode.
+3. From then on the show has **Play** and **Mark watched** buttons for the next episode. Open the show for the season list, ratings and the "stopped at" box.
 
-## Deploy it to share with others (free)
+### Resume across devices
 
-1. **Database**: create a free database at [turso.tech](https://turso.tech), then copy its URL (`libsql://…`) and an auth token.
-2. **Hosting**: push this folder to GitHub and import it on [vercel.com](https://vercel.com).
-3. In Vercel's project settings, add these environment variables:
-   - `AUTH_SECRET`: a new random value
-   - `DATABASE_URL` and `DATABASE_AUTH_TOKEN`: from Turso
-   - optionally `TMDB_API_KEY` for posters
-4. Deploy. Tables are created on first request.
+| You watch on | How the position is saved |
+|---|---|
+| **PC** with the [PC bridge](docs/VLC-BRIDGE.md) running | Automatically, every ~15 seconds and when you stop. Finished episodes (about 92% watched) are logged by themselves. |
+| **Phone** | By hand: type "stopped at 21:30" on the show page. VLC on phones cannot report its position to a website. |
 
-To keep the server private after your friends have signed up, set `ALLOW_SIGNUPS=false`.
+Android VLC and desktop playlists honour the start time. iOS VLC has no start-time option.
 
-The hosted site never talks to the FTP servers. Your device does the streaming, so links that only work on BDIX still play when you are on your ISP's network.
+### Browser helper (optional, recommended)
 
-## Environment variables
+A small userscript that adds a badge next to every video in an FTP listing and teaches Watchtrail the real file names.
+
+1. Install [Tampermonkey](https://www.tampermonkey.net/) or Violentmonkey (on Android, use Kiwi Browser or Firefox).
+2. In Watchtrail, open **Settings** and follow the helper steps (it installs from `/api/ext/watchtrail.user.js` on your server and uses your personal token).
+3. Open a folder on the FTP site. Watched files get a check, partly watched ones show "stopped at", and the rest get a **+ log** button.
+
+The script matches `circleftp.net` by default. For another server, add a `// @match *://your-server/*` line to the script header.
+
+### PC bridge for VLC (optional)
+
+Tells Watchtrail where you are in a file while you watch on a PC. One-time VLC setup, then double-click `scripts/watchtrail-bridge.cmd`. Full steps are in [docs/VLC-BRIDGE.md](docs/VLC-BRIDGE.md).
+
+## Deploy it for your friends
+
+The free tier of two services is enough for a household or a friend group.
+
+1. **Database:** create a free database at [turso.tech](https://turso.tech) and copy its URL (`libsql://...`) and an auth token.
+2. **Hosting:** push your fork to GitHub and import it on [vercel.com](https://vercel.com). `vercel.json` already picks the Mumbai region, which is close to Bangladesh. Change `regions` if you live elsewhere.
+3. In Vercel's project settings add the environment variables below.
+4. Deploy. Tables are created (and upgraded) on the first request.
+
+After your friends have signed up, set `ALLOW_SIGNUPS=false` to close registration.
+
+The hosted site never talks to the FTP servers. Your own device does the streaming, so links that only work on BDIX still play when you are on your ISP's network.
+
+### Environment variables
 
 | Variable | Required | Purpose |
 |---|---|---|
 | `AUTH_SECRET` | yes | Signs login sessions. 32+ random characters. |
 | `DATABASE_URL` | no | `file:data/watchtrail.db` (default) or a `libsql://` Turso URL. |
 | `DATABASE_AUTH_TOKEN` | with Turso | Turso auth token. |
-| `TMDB_API_KEY` / `TMDB_READ_TOKEN` | no | Poster artwork. |
+| `TMDB_API_KEY` or `TMDB_READ_TOKEN` | no, but recommended | Posters, episode titles and counts, new-episode badges. Free at [themoviedb.org](https://www.themoviedb.org/settings/api). |
 | `ALLOW_SIGNUPS` | no | Set to `false` to close registration. |
 
-## Project layout
+Without TMDB keys the app still works, but there is no artwork, no episode list with titles, and "mark everything up to here" cannot fill earlier seasons.
 
-```
-src/lib/parse.ts        link parsing, next-episode guessing (pure, client + server)
-src/lib/schema.ts       tables (Drizzle) + bootstrap SQL
-src/lib/library.ts      all reads/writes for shows, episodes, movies, history
-src/lib/auth.ts         signed-cookie sessions
-src/lib/play.ts         how each platform hands a link to VLC
-src/app/actions.ts      server actions used by the UI
-src/app/(app)/          signed-in pages: shows, show detail, movies, history, help
-src/app/(auth)/         sign in / sign up
-src/app/share/          Android share-sheet target
-src/app/api/playlist/   .m3u for desktop VLC
-scripts/check-parser.ts quick parser check: node scripts/check-parser.ts
-```
+## Privacy
+
+- Watchtrail stores your email, a password hash, and the links and metadata you log. No video, no FTP credentials.
+- Your personal API token (used by the helper and bridge) can only log and read your own library. Rotate it any time in **Settings**.
+- The bridge keeps its settings in `.watchtrail-bridge.json` in your user folder, never in the repository.
+
+## Tech stack
+
+Next.js 16 (App Router, React 19, server actions), TypeScript, Tailwind CSS 4, Drizzle ORM on SQLite / Turso (libSQL), signed-cookie sessions with `jose` and `bcryptjs`, TMDB for metadata. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how it fits together.
+
+## Contributing
+
+Bug reports, ideas and pull requests are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md). Good first areas: parsing more file-naming styles, support for more FTP servers in the userscript, and a proper test suite for the parser.
+
+## Show it off
+
+Built something with it, or want to announce your fork? The project ships with the [`brag-slim`](https://github.com/latent-spaces/brag) skill. In Claude Code, run `/brag-slim` in the project folder and it writes a short launch video plus share copy to `brag-output/`.
+
+## License
+
+[MIT](LICENSE)

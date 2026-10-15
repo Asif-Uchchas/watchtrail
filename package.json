@@ -1,12 +1,18 @@
 {
   "name": "watchtrail",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
+  "description": "Track what you watch from FTP / BDIX servers and resume in VLC on any device.",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "git+https://github.com/Asif-Uchchas/watchtrail.git" },
+  "engines": { "node": ">=20.9" },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "check:parser": "node scripts/check-parser.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",
