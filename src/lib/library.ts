@@ -843,14 +843,18 @@ export async function getQueue(
     const key = cur.season + ":" + cur.episode;
     // Once a season's folder listing has been seen, a missing file is really missing:
     // guessing its name from another episode's would just produce a dead link.
-    const listingSeen = [...ctx.learned.keys()].some((k) => k.startsWith(cur!.season + ":"));
+    // A single learned link (from one "+ log" click) is not a listing; only treat the
+    // season as seen when the helper has captured several of its files.
+    const seasonKeys = [...ctx.learned.keys()].filter((k) => k.startsWith(cur!.season + ":"));
+    const listingSeen = seasonKeys.length >= 3;
+    const seasonRef = seasonKeys.length ? ctx.learned.get(seasonKeys[0])! : ref;
     const first = items.length === 0;
     // For the very first item an imperfect guess beats an empty queue: the user
     // asked to play *something*. Later items stay strict so we never queue dead links.
     const url =
       ctx.learned.get(key) ??
       (first ? show.nextUrl : null) ??
-      (ref && (first || !listingSeen) ? rewriteEpisodeUrl(ref, cur.season, cur.episode) : null);
+      (seasonRef && (first || !listingSeen) ? rewriteEpisodeUrl(seasonRef, cur.season, cur.episode) : null);
     if (!url) break;
     let title: string | null = null;
     if (show.tmdbId && show.tmdbId > 0) {
