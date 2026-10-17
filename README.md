@@ -1,11 +1,21 @@
 <div align="center">
 
-# Watchtrail
+<img src="docs/images/banner.png" alt="Watchtrail: never lose your place in a series again" width="720">
 
-**Never lose your place in a series again.**
-Track what you watch from FTP / BDIX servers, and pick up where you left off on your phone or your PC.
+<br>
 
-[Features](#features) | [Quick start](#quick-start) | [Using it](#using-watchtrail) | [Deploy](#deploy-it-for-your-friends) | [Contributing](CONTRIBUTING.md)
+[![CI](https://github.com/Asif-Uchchas/watchtrail/actions/workflows/ci.yml/badge.svg)](https://github.com/Asif-Uchchas/watchtrail/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-f5b83d.svg)](LICENSE)
+![Node 20.9+](https://img.shields.io/badge/node-20.9%2B-3c873a)
+![Next.js 16](https://img.shields.io/badge/Next.js-16-black)
+
+**Track what you watch from FTP / BDIX servers, and pick up where you left off on your phone or your PC.**
+
+[Features](#features) | [Quick start](#quick-start) | [How to use it](#how-to-use-it) | [Deploy](#deploy-it-for-your-friends) | [Contributing](CONTRIBUTING.md)
+
+<br>
+
+<img src="docs/images/home.png" alt="Watchtrail home screen with Continue watching" width="860">
 
 </div>
 
@@ -14,6 +24,20 @@ Track what you watch from FTP / BDIX servers, and pick up where you left off on 
 If you stream shows and movies from Circle FTP or another h5ai-style file server straight into VLC, you know the problem: the server has no idea what you watched. Two weeks later you are scrolling a folder of 24 files trying to remember whether you finished episode 11.
 
 Watchtrail fixes that. Paste the link you would normally open in VLC, and it works out the show, season and episode, logs it, and gives you a **Play next** button. It stores links and small bits of metadata only. It never touches or stores video.
+
+## Screenshots
+
+| Show page and episode list | Stats |
+|---|---|
+| <img src="docs/images/show.png" alt="Show page"> | <img src="docs/images/stats.png" alt="Stats"> |
+| **Movies** | **History** |
+| <img src="docs/images/movies.png" alt="Movies"> | <img src="docs/images/history.png" alt="History"> |
+
+<div align="center">
+<img src="docs/images/home-phone.png" alt="Phone home" width="230">
+<img src="docs/images/show-phone.png" alt="Phone show page" width="230">
+<img src="docs/images/episodes-phone.png" alt="Phone episode list" width="230">
+</div>
 
 ## Features
 
@@ -55,11 +79,48 @@ For a production-style run use `npm run build && npm start`.
 
 **On your phone, same Wi-Fi:** the server prints a **Network** address such as `http://192.168.0.107:3000`. Open it on your phone. If it does not load, allow Node.js through Windows Firewall for private networks. Home-screen install and the Share menu need https, so they work once deployed (below).
 
-## Using Watchtrail
+## How to use it
 
-1. On the FTP site, copy an episode's link (right-click > **Copy link address**, or long-press on a phone).
-2. Paste it into the box on the home screen and press **Mark watched**. Use **Just track** to add a show without logging an episode.
-3. From then on the show has **Play** and **Mark watched** buttons for the next episode. Open the show for the season list, ratings and the "stopped at" box.
+### 1. Sign up
+
+Open the app and create an account. The first account on a fresh server is yours.
+
+<img src="docs/images/login.png" alt="Sign in and sign up screen" width="640">
+
+### 2. Paste a link
+
+On the FTP site, copy an episode's link (right-click > **Copy link address**, or long-press on a phone) and paste it into the box on the home screen. Watchtrail shows what it understood (show, season, episode) before you save.
+
+<img src="docs/images/add-link.png" alt="Pasting an episode link shows a preview" width="820">
+
+Press **Mark watched** to log it, or **Just track** to add the show without logging an episode.
+
+### 3. Play next, resume, mark watched
+
+The home screen keeps a **Continue watching** card for each show. **Play** opens the next episode in VLC, **Resume** continues a partly watched one, and **Mark watched** logs it without playing.
+
+<img src="docs/images/home.png" alt="Continue watching cards" width="820">
+
+### 4. Open a show for the episode list
+
+Every season has its own tab, with TMDB titles and spoiler-safe summaries. Tick any episode to log or un-log it. If you stopped partway, type the time into **Stopped partway?** and the episode becomes **Resume** (it starts 5 seconds earlier). Started the show before Watchtrail? Use **Set your place** to mark everything up to an episode.
+
+<img src="docs/images/episodes.png" alt="Season tabs, episode list, stopped-at box and set-your-place" width="820">
+
+### 5. Connect the helper and bridge (optional)
+
+**Settings** has your personal token and the one-click install for the browser helper.
+
+<img src="docs/images/settings.png" alt="Settings page with the helper install and token" width="820">
+
+### 6. On your phone
+
+It is a responsive web app. Add it to your home screen once it is deployed over https, or share a link straight to it from the Android **Share** menu.
+
+<div align="center">
+<img src="docs/images/home-phone.png" alt="Phone home" width="230">
+<img src="docs/images/episodes-phone.png" alt="Phone episode list" width="230">
+</div>
 
 ### Resume across devices
 
