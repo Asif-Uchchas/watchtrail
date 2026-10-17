@@ -146,6 +146,13 @@ export default async function ShowPage(props: PageProps<"/shows/[id]">) {
                           <ListVideo className="size-4" />
                           Queue 5
                         </a>
+                        <a
+                          href={`/api/queue?show=${show.id}&n=300`}
+                          title="Download a playlist of every remaining episode (opens in VLC to stream, not a video download)"
+                          className={`${buttonClass("secondary", "lg")} ml-2`}
+                        >
+                          Queue all
+                        </a>
                       </span>
                     </>
                   ) : null}

@@ -12,10 +12,14 @@ export async function GET(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
 
   const showId = request.nextUrl.searchParams.get("show") ?? "";
-  const count = Math.min(Math.max(Number(request.nextUrl.searchParams.get("n")) || 5, 1), 12);
+  const count = Math.min(Math.max(Number(request.nextUrl.searchParams.get("n")) || 5, 1), 300);
   const queue = await getQueue(user.id, showId, count);
-  if (!queue || !queue.items.length) {
-    return NextResponse.json({ error: "Nothing to queue yet. Open a season folder link first." }, { status: 404 });
+  if (!queue) return NextResponse.json({ error: "Show not found." }, { status: 404 });
+  if (!queue.items.length) {
+    const why = queue.show.nextSeason === null
+      ? "Watchtrail doesn't know the next episode yet (no episode list from TMDB). Log an episode or use Set your place first."
+      : "Watchtrail has no link for the next episode. Open that season's folder on the FTP site with the browser helper on, or paste an episode link from it.";
+    return NextResponse.json({ error: `Nothing to queue. ${why}` }, { status: 404 });
   }
 
   const lines = ["#EXTM3U"];
