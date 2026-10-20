@@ -385,6 +385,8 @@ export type ShowCard = Show & {
   nextLabel: string | null;
   nextUrl: string | null;
   seasonFolderUrl: string | null;
+  /** The next link is a guess from another episode's file name (may not exist on the server). */
+  nextGuessed: boolean;
   caughtUp: boolean;
   watchedCount: number;
   totalEpisodes: number | null;
@@ -453,9 +455,13 @@ function toCard(show: Show, watchedCount: number, ctx: CardContext): ShowCard {
   }
 
   let nextUrl: string | null = null;
+  // True when the link was rebuilt from another episode's file name, not seen on the server.
+  // Release groups and casing differ between episodes, so such a link can fail in VLC.
+  let nextGuessed = false;
   if (next) {
     nextUrl = resumeUrl ?? ctx.learned.get(next.season + ":" + next.episode) ?? null;
     if (!nextUrl) {
+      nextGuessed = true;
       // Rebuild from the last watched file (or the show's example link); this also
       // handles moving to the next season's folder.
       const base = show.lastUrl ?? show.sampleUrl;
@@ -472,6 +478,7 @@ function toCard(show: Show, watchedCount: number, ctx: CardContext): ShowCard {
     nextEpisode: next?.episode ?? null,
     nextLabel: next ? formatEpisode(next.season, next.episode) : null,
     nextUrl,
+    nextGuessed: nextGuessed && nextUrl !== null,
     seasonFolderUrl: nextUrl
       ? parentFolderUrl(nextUrl)
       : show.lastUrl

@@ -172,6 +172,13 @@ export default async function ShowPage(props: PageProps<"/shows/[id]">) {
                 {hasProgress && next.season !== show.lastSeason ? (
                   <p className="mt-2 text-[13px] text-muted">This starts a new season.</p>
                 ) : null}
+                {show.nextUrl && show.nextGuessed ? (
+                  <p className="mt-2 max-w-xl text-[13px] text-muted">
+                    This link is a guess from another episode&apos;s file name. If VLC can&apos;t open it, press{" "}
+                    <strong>Open folder</strong> with the browser helper on: Watchtrail then learns the real file names and
+                    Play works.
+                  </p>
+                ) : null}
                 {!show.nextUrl ? (
                   <div className="mt-4">
                     <EnablePlayForm showId={show.id} title={show.title} />

@@ -139,6 +139,8 @@ A small userscript that adds a badge next to every video in an FTP listing and t
 2. In Watchtrail, open **Settings** and follow the helper steps (it installs from `/api/ext/watchtrail.user.js` on your server and uses your personal token).
 3. Open a folder on the FTP site. Watched files get a check, partly watched ones show "stopped at", and the rest get a **+ log** button.
 
+**Learn a whole show at once:** on a show's folder (the one that lists the season folders) the helper adds a **Learn whole show** button. It reads every season folder in your browser and sends all the real file names to Watchtrail, so Play, Queue 5 and Queue all never have to guess. Add the show to your library first; files of shows you don't track are skipped. When a season exists in several qualities, the 1080p file names win.
+
 The script matches `circleftp.net` by default. For another server, add a `// @match *://your-server/*` line to the script header.
 
 ### PC bridge for VLC (optional)

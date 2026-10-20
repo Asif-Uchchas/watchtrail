@@ -11,7 +11,7 @@ export function GET(request: Request) {
   const script = `// ==UserScript==
 // @name         Watchtrail for FTP listings
 // @namespace    ${origin}
-// @version      1.2
+// @version      1.3
 // @description  Shows what you have watched in FTP/h5ai file listings and logs episodes with one click.
 // @match        *://*.circleftp.net/*
 // @match        *://circleftp.net/*
@@ -128,9 +128,119 @@ export function GET(request: Request) {
     }, function () { status("offline", true); links.forEach(function (a) { a.removeAttribute("data-wt"); }); });
   }
 
-  function schedule() { clearTimeout(timer); timer = setTimeout(scan, 500); }
+  // ---- "Learn whole show": crawl this folder and every sub-folder, then send all real file names.
+  // This runs in YOUR browser on the FTP site itself (same origin), which is the only place that can
+  // reach BDIX servers; the Watchtrail server on Vercel cannot.
+  var crawling = false;
+  var crawlBtn = null;
+
+  function crawlLabel(text) { if (crawlBtn) crawlBtn.textContent = text; }
+
+  // Folders whose name says 1080p are read last, so their file names win when a season exists in
+  // several qualities (a later link for the same episode replaces an earlier one).
+  function qualityRank(url) {
+    var d = url;
+    try { d = decodeURIComponent(url); } catch (e) {}
+    return /1080p/i.test(d) ? 2 : 1;
+  }
+
+  function dirPath(u) { return u.pathname.replace(/[^/]*$/, ""); }
+
+  async function crawl() {
+    if (crawling) return;
+    if (!token) { setToken(); return; }
+    crawling = true;
+    var MAX_FOLDERS = 80, MAX_DEPTH = 3;
+    var start = new URL(location.href);
+    start.hash = ""; start.search = "";
+    var basePath = start.pathname.slice(-1) === "/" ? start.pathname : dirPath(start);
+    var queue = [{ url: start.href, depth: 0 }];
+    var seen = {}, found = {}, folders = 0;
+    try {
+      while (queue.length && folders < MAX_FOLDERS) {
+        var item = queue.shift();
+        if (seen[item.url]) continue;
+        seen[item.url] = true;
+        folders++;
+        crawlLabel("Reading folder " + folders + "...");
+        var doc = null;
+        if (item.url === start.href) {
+          doc = document;
+        } else {
+          try {
+            var res = await fetch(item.url, { credentials: "same-origin" });
+            doc = new DOMParser().parseFromString(await res.text(), "text/html");
+          } catch (e) { continue; }
+          // Be gentle with the server.
+          await new Promise(function (r) { setTimeout(r, 150); });
+        }
+        var here = new URL(item.url);
+        var anchors = doc.querySelectorAll("a[href]");
+        for (var i = 0; i < anchors.length; i++) {
+          var u;
+          try { u = new URL(anchors[i].getAttribute("href"), item.url); } catch (e) { continue; }
+          if (u.origin !== location.origin) continue;
+          var decoded = u.pathname;
+          try { decoded = decodeURIComponent(u.pathname); } catch (e) {}
+          if (VIDEO.test(decoded)) {
+            found[u.origin + u.pathname] = true;
+          } else if (
+            u.pathname.slice(-1) === "/" && !u.search &&
+            u.pathname.indexOf(basePath) === 0 && u.pathname !== here.pathname &&
+            item.depth < MAX_DEPTH
+          ) {
+            queue.push({ url: u.origin + u.pathname, depth: item.depth + 1 });
+          }
+        }
+      }
+      var urls = Object.keys(found).sort(function (a, b) { return qualityRank(a) - qualityRank(b); });
+      if (!urls.length) {
+        crawlLabel("No files found");
+        alert("Watchtrail found no video files in this folder tree. Open a season folder and try again.");
+        return;
+      }
+      var learned = 0;
+      for (var j = 0; j < urls.length; j += 400) {
+        crawlLabel("Saving " + Math.min(j + 400, urls.length) + "/" + urls.length + "...");
+        var r = await call("/api/ext/links", { urls: urls.slice(j, j + 400) });
+        if (r.status === 401) { status("bad token", true); crawlLabel("Bad token"); return; }
+        learned += (r.json && r.json.learned) || 0;
+      }
+      crawlLabel("Learned " + learned + " episodes");
+      alert(
+        "Watchtrail learned " + learned + " episode file names from " + folders + " folders (" + urls.length + " files found).\\n" +
+        (learned < urls.length ? "Files of shows that are not in your Watchtrail library yet were skipped: add the show first, then run this again." : "")
+      );
+    } catch (e) {
+      crawlLabel("Learn failed");
+    } finally {
+      crawling = false;
+      setTimeout(function () { crawlLabel("Learn whole show"); }, 4000);
+    }
+  }
+  GM_registerMenuCommand("Learn this folder and all sub-folders", crawl);
+
+  // Show the button only on pages that have sub-folders (a show or season root).
+  function maybeShowCrawlButton() {
+    if (crawlBtn || !token) return;
+    var path = location.pathname;
+    var hasSub = Array.prototype.some.call(document.querySelectorAll("a[href]"), function (a) {
+      return a.origin === location.origin && a.pathname.slice(-1) === "/" && a.pathname.length > path.length && a.pathname.indexOf(path) === 0;
+    });
+    if (!hasSub) return;
+    crawlBtn = document.createElement("button");
+    crawlBtn.type = "button";
+    crawlBtn.textContent = "Learn whole show";
+    crawlBtn.title = "Read every sub-folder and teach Watchtrail the real file names";
+    crawlBtn.style.cssText = "position:fixed;right:12px;bottom:48px;z-index:99999;padding:6px 12px;border-radius:999px;border:1px solid #f5b54488;background:#18181dee;color:#f5b544;font:600 12px system-ui;cursor:pointer";
+    crawlBtn.onclick = crawl;
+    document.body.appendChild(crawlBtn);
+  }
+
+  function schedule() { clearTimeout(timer); timer = setTimeout(function () { scan(); maybeShowCrawlButton(); }, 500); }
   new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });
   scan();
+  maybeShowCrawlButton();
 })();
 `;
   return new Response(script, {
