@@ -289,10 +289,10 @@ export async function attachEpisodeLink(showId: string, input: string): Promise<
   const parsed = parseMediaUrl(input);
   if (parsed.kind === "error") return { ok: false, error: parsed.message };
   if (parsed.kind !== "episode") {
-    return { ok: false, error: "That's a folder or movie link. Paste the link to an episode file (…s02e01….mkv)." };
+    return { ok: false, error: "That's a folder or movie link. Paste the link to an episode file (â€¦s02e01â€¦.mkv)." };
   }
   if (normalizeKey(parsed.showTitle) !== show.titleKey) {
-    return { ok: false, error: `That link looks like “${parsed.showTitle}”, not ${show.title}.` };
+    return { ok: false, error: `That link looks like â€œ${parsed.showTitle}â€, not ${show.title}.` };
   }
   await setSampleUrl(user.id, show.id, parsed.url);
   refreshAll();
@@ -430,4 +430,54 @@ export async function rateMovie(movieId: string, rating: number | null): Promise
   await setMovieRating(user.id, movieId, rating);
   refreshAll();
   return { ok: true, message: rating ? `Rated ${rating} of 5.` : "Rating removed." };
+}
+
+// ---------------------------------------------------------------- manual naming
+
+const manualSchema = z.object({
+  url: z.string().trim().url("Paste a full link first.").max(2000),
+  title: z.string().trim().min(1, "Type the title.").max(200),
+  kind: z.enum(["movie", "episode"]),
+  year: z.number().int().min(1888).max(2100).nullable(),
+  season: z.number().int().min(0).max(99).nullable(),
+  episode: z.number().int().min(1).max(999).nullable(),
+  mode: z.enum(["watched", "track"]),
+});
+
+/**
+ * For links whose file name says nothing (dflix.live/api/download/362003 and the like): the user
+ * tells us what the link is, and we store it against that title. TMDB matching then works from the title.
+ */
+export async function addLinkManual(input: z.input<typeof manualSchema>): Promise<ActionResult> {
+  const user = await requireUser();
+  const parsed = manualSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the details." };
+  const v = parsed.data;
+
+  if (v.kind === "movie") {
+    const { movie } = await upsertMovie(user.id, { title: v.title, year: v.year === null ? null : String(v.year), url: v.url, watched: v.mode === "watched" });
+    refreshAll();
+    const name = movie.year ? `${movie.title} (${movie.year})` : movie.title;
+    return {
+      ok: true,
+      message: v.mode === "watched" ? `Marked ${name} as watched.` : `Added ${name} to your watchlist.`,
+      href: "/movies",
+    };
+  }
+
+  if (v.season === null || v.episode === null) return { ok: false, error: "Enter the season and episode number." };
+  const { show } = await upsertShow(user.id, { title: v.title, year: v.year === null ? null : String(v.year), folderUrl: null, sampleUrl: v.url });
+  const label = formatEpisode(v.season, v.episode);
+  if (v.mode === "track") {
+    refreshAll();
+    return { ok: true, message: `${show.title} is in your shows.`, href: `/shows/${show.id}` };
+  }
+  const { episodeId, alreadyWatched } = await recordEpisode(user.id, show.id, v.season, v.episode, v.url);
+  refreshAll();
+  return {
+    ok: true,
+    message: alreadyWatched ? `${show.title} ${label} was already watched.` : `Marked ${show.title} ${label} as watched.`,
+    href: `/shows/${show.id}`,
+    undo: alreadyWatched ? undefined : { kind: "episode", id: episodeId },
+  };
 }

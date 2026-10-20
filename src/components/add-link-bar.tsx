@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import { ClipboardPaste, Film, FolderOpen, Link2, Loader2, Tv } from "lucide-react";
-import { addLink } from "@/app/actions";
+import { addLink, addLinkManual } from "@/app/actions";
 import { formatEpisode, parseMediaUrl } from "@/lib/parse";
 import { Button, cx } from "./ui";
 import { useActionToast } from "./use-action-toast";
@@ -22,6 +22,7 @@ export function AddLinkBar({
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const { run, pending } = useActionToast();
+  const [naming, setNaming] = useState(false);
 
   const parsed = useMemo(() => (value.trim() ? parseMediaUrl(value) : null), [value]);
 
@@ -116,6 +117,28 @@ export function AddLinkBar({
         </div>
       </form>
 
+      {value.trim() && parsed ? (
+        <div className="mt-2 px-1 text-[13px]">
+          <button
+            type="button"
+            onClick={() => setNaming((n) => !n)}
+            className="text-muted underline-offset-2 transition hover:text-ink hover:underline"
+          >
+            {parsed.kind === "error" ? "Name this link yourself" : "Not the right title? Name it yourself"}
+          </button>
+        </div>
+      ) : null}
+      {naming && value.trim() ? (
+        <ManualNaming
+          url={value.trim()}
+          onDone={(href) => {
+            setValue("");
+            setNaming(false);
+            if (goToResult && href) router.push(href);
+          }}
+        />
+      ) : null}
+
       {parsed ? (
         <div className="mt-3 flex min-h-6 items-center gap-2 px-1 text-[13px]">
           {parsed.kind === "error" ? (
@@ -145,6 +168,108 @@ export function AddLinkBar({
           )}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * For links that say nothing about what they are (download/362003 style): the user types the
+ * title, and we save the link against it.
+ */
+function ManualNaming({ url, onDone }: { url: string; onDone: (href?: string) => void }) {
+  const { run, pending } = useActionToast();
+  const [kind, setKind] = useState<"movie" | "episode">("movie");
+  const [title, setTitle] = useState("");
+  const [year, setYear] = useState("");
+  const [season, setSeason] = useState("1");
+  const [episode, setEpisode] = useState("1");
+
+  const num = (s: string) => (s.trim() && Number.isFinite(Number(s)) ? Math.trunc(Number(s)) : null);
+  const save = (mode: "watched" | "track") => {
+    if (pending) return;
+    void run(
+      () =>
+        addLinkManual({
+          url,
+          title,
+          kind,
+          year: num(year),
+          season: kind === "episode" ? num(season) : null,
+          episode: kind === "episode" ? num(episode) : null,
+          mode,
+        }),
+      { onSuccess: (r) => onDone(r.href) },
+    );
+  };
+  const field =
+    "h-10 rounded-[10px] border border-line-strong bg-surface px-3 text-[14px] text-ink outline-none transition placeholder:text-faint focus:border-accent/70";
+
+  return (
+    <div className="mt-3 rounded-[12px] border border-line bg-surface-2 p-4 animate-rise">
+      <p className="text-[13px] text-muted">
+        Watchtrail can&apos;t read a title from this link, so tell it what it is. The link is saved with it and Play uses it as-is.
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <div className="inline-flex rounded-[10px] border border-line-strong p-0.5" role="group" aria-label="Type">
+          {(["movie", "episode"] as const).map((k) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setKind(k)}
+              className={cx(
+                "rounded-lg px-3 py-1.5 text-[13px] transition",
+                kind === k ? "bg-surface-3 text-ink" : "text-muted hover:text-ink",
+              )}
+            >
+              {k === "movie" ? "Movie" : "TV episode"}
+            </button>
+          ))}
+        </div>
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder={kind === "movie" ? "Title, e.g. The Odyssey" : "Show title, e.g. House"}
+          aria-label="Title"
+          className={cx(field, "min-w-48 flex-1")}
+        />
+        <input
+          value={year}
+          onChange={(e) => setYear(e.target.value)}
+          inputMode="numeric"
+          placeholder="Year"
+          aria-label="Year (optional)"
+          className={cx(field, "w-24")}
+        />
+        {kind === "episode" ? (
+          <>
+            <input
+              value={season}
+              onChange={(e) => setSeason(e.target.value)}
+              inputMode="numeric"
+              placeholder="Season"
+              aria-label="Season"
+              className={cx(field, "w-24")}
+            />
+            <input
+              value={episode}
+              onChange={(e) => setEpisode(e.target.value)}
+              inputMode="numeric"
+              placeholder="Episode"
+              aria-label="Episode"
+              className={cx(field, "w-24")}
+            />
+          </>
+        ) : null}
+      </div>
+      <div className="mt-3 flex gap-2">
+        <Button type="button" variant="primary" disabled={pending || !title.trim()} onClick={() => save("watched")}>
+          {pending ? <Loader2 className="size-4 animate-spin" /> : null}
+          {kind === "movie" ? "Watched it" : "Mark watched"}
+        </Button>
+        <Button type="button" variant="secondary" disabled={pending || !title.trim()} onClick={() => save("track")}>
+          {kind === "movie" ? "Watchlist" : "Just track"}
+        </Button>
+      </div>
     </div>
   );
 }

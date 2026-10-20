@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { listShows } from "@/lib/library";
 import { formatEpisode } from "@/lib/parse";
 import { AddLinkBar } from "@/components/add-link-bar";
+import { GettingStarted } from "@/components/getting-started";
 import { ShowsBoard } from "@/components/shows-board";
 import { MarkWatchedButton } from "@/components/show-actions";
 import { CopyLinkButton, FolderButton, PlayButton } from "@/components/play";
@@ -22,6 +23,7 @@ export default async function HomePage() {
   return (
     <div className="space-y-12">
       <AddLinkBar />
+      {shows.length < 3 ? <GettingStarted hasShows={shows.length > 0} /> : null}
 
       {upNext ? (
         <section className="animate-rise">

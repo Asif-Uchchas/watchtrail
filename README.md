@@ -42,6 +42,8 @@ Watchtrail fixes that. Paste the link you would normally open in VLC, and it wor
 ## Features
 
 **Tracking**
+- **Links that don't say what they are** (ID-style download links) can be named by hand: type the title once and the link is saved with it.
+- **Try another server.** If a file won't open, the show page offers the same path on your other servers (ftp9, ftp12, ...).
 - **Paste any link.** Episode files (`house.s02e05...mkv`, `2x05`, `Season 2/05.mkv`), movie files and show folders all work, with a live preview before you save.
 - **Set your place.** Started a show before Watchtrail? Say "I'm at S04E10" and it marks everything before it as watched, using TMDB episode counts and rolling over seasons correctly.
 - **Statuses, search, history and stats.** Watching, On hold, Finished, Dropped; a day-by-day history; watch time, streaks and top shows.
@@ -145,7 +147,7 @@ The script matches `circleftp.net` by default. For another server, add a `// @ma
 
 ### PC bridge for VLC (optional)
 
-Tells Watchtrail where you are in a file while you watch on a PC. One-time VLC setup, then double-click `scripts/watchtrail-bridge.cmd`. Full steps are in [docs/VLC-BRIDGE.md](docs/VLC-BRIDGE.md).
+Tells Watchtrail where you are in a file while you watch on a PC. One-time VLC setup, then double-click `scripts/watchtrail-bridge.cmd` (Windows) or `scripts/watchtrail-bridge.command` (macOS), or run `bash scripts/watchtrail-bridge.sh` (Linux). Full steps are in [docs/VLC-BRIDGE.md](docs/VLC-BRIDGE.md).
 
 ## Deploy it for your friends
 

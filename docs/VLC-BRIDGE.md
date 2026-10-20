@@ -12,10 +12,11 @@ VLC on phones cannot report its position to a website, so on a phone use the **S
 
 ### 1. Enable VLC's web interface
 
-1. In VLC: **Tools > Preferences**, then at the bottom left choose **Show settings: All**.
+1. In VLC: **Tools > Preferences** (on macOS: **VLC > Settings**), then at the bottom left choose **Show settings: All**.
 2. Go to **Interface > Main interfaces > Lua** and set **Lua HTTP > Password** to anything you like. Leave the other fields alone.
 3. Go to **Interface > Control interfaces**. If there is a **Web** checkbox, tick it. If there is none, type `http` in the empty text box at the bottom of that page.
 4. Click **Save** and **close VLC completely**, including from the system tray.
+   On Linux you can also skip the settings and start VLC with `vlc --extraintf http --http-password yourpass`.
 5. Reopen VLC and visit <http://localhost:8080> in a browser. You should be asked for a password (leave the username empty). Seeing the VLC web player means it worked.
 
 ### 2. Get your token
@@ -27,6 +28,12 @@ In Watchtrail, open **Settings** and copy your personal token. It starts with `w
 Requires Node.js 18 or newer.
 
 **Windows:** double-click `scripts/watchtrail-bridge.cmd`. The first run asks for your Watchtrail address, token and VLC password, and saves them to `.watchtrail-bridge.json` in your user folder (outside the repository, on your PC only). After that it just starts.
+
+**macOS:** double-click `scripts/watchtrail-bridge.command`. If macOS says the file can't be opened, run `chmod +x scripts/watchtrail-bridge.command` once in Terminal, then right-click it and choose **Open** the first time.
+
+**Linux:** run `bash scripts/watchtrail-bridge.sh` in a terminal.
+
+On both, the first run asks for the same three things and saves them to `~/.watchtrail-bridge.json`.
 
 **Any OS, by hand:**
 

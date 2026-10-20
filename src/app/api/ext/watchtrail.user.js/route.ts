@@ -151,6 +151,7 @@ export function GET(request: Request) {
     if (!token) { setToken(); return; }
     crawling = true;
     var MAX_FOLDERS = 80, MAX_DEPTH = 3;
+    var site = location.hostname.split(".").slice(-2).join(".");
     var start = new URL(location.href);
     start.hash = ""; start.search = "";
     var basePath = start.pathname.slice(-1) === "/" ? start.pathname : dirPath(start);
@@ -179,12 +180,17 @@ export function GET(request: Request) {
         for (var i = 0; i < anchors.length; i++) {
           var u;
           try { u = new URL(anchors[i].getAttribute("href"), item.url); } catch (e) { continue; }
-          if (u.origin !== location.origin) continue;
           var decoded = u.pathname;
           try { decoded = decodeURIComponent(u.pathname); } catch (e) {}
+          // Video files may live on another server of the same site (new.circleftp.net lists
+          // files that are served from ftp12.circleftp.net), so accept any host of this site.
           if (VIDEO.test(decoded)) {
-            found[u.origin + u.pathname] = true;
-          } else if (
+            if (u.hostname === site || u.hostname.slice(-(site.length + 1)) === "." + site) found[u.origin + u.pathname] = true;
+            continue;
+          }
+          // Folders can only be fetched from the page's own server (other servers block it).
+          if (u.origin !== location.origin) continue;
+          if (
             u.pathname.slice(-1) === "/" && !u.search &&
             u.pathname.indexOf(basePath) === 0 && u.pathname !== here.pathname &&
             item.depth < MAX_DEPTH
@@ -227,7 +233,13 @@ export function GET(request: Request) {
     var hasSub = Array.prototype.some.call(document.querySelectorAll("a[href]"), function (a) {
       return a.origin === location.origin && a.pathname.slice(-1) === "/" && a.pathname.length > path.length && a.pathname.indexOf(path) === 0;
     });
-    if (!hasSub) return;
+    // Pages like new.circleftp.net/content/ID list every season's files in one page, with no sub-folders.
+    var hasVideo = Array.prototype.some.call(document.querySelectorAll("a[href]"), function (a) {
+      var p = a.pathname;
+      try { p = decodeURIComponent(p); } catch (e) {}
+      return VIDEO.test(p);
+    });
+    if (!hasSub && !hasVideo) return;
     crawlBtn = document.createElement("button");
     crawlBtn.type = "button";
     crawlBtn.textContent = "Learn whole show";

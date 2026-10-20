@@ -3,7 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Check, ListVideo } from "lucide-react";
 import { requireUser } from "@/lib/auth";
-import { getSeasonRows, getShow, getShowDetail } from "@/lib/library";
+import { getSeasonRows, getShow, getShowDetail, otherHosts } from "@/lib/library";
+import { MirrorMenu } from "@/components/mirror-menu";
 import { formatClock, resumeStart } from "@/lib/time";
 import { formatEpisode } from "@/lib/parse";
 import { statusLabel } from "@/lib/constants";
@@ -52,6 +53,7 @@ export default async function ShowPage(props: PageProps<"/shows/[id]">) {
   const activeSeason = seasonNumbers.includes(requested)
     ? requested
     : (show.nextSeason ?? show.lastSeason ?? seasonNumbers[0] ?? 1);
+  const mirrorHosts = show.nextUrl ? await otherHosts(user.id, show.nextUrl) : [];
   const rows = (await getSeasonRows(user.id, show.id, activeSeason)) ?? [];
   const watchedInSeason = rows.filter((r) => r.watched).length;
   const resumeEpisode = show.resumeSeconds
@@ -178,6 +180,14 @@ export default async function ShowPage(props: PageProps<"/shows/[id]">) {
                     <strong>Open folder</strong> with the browser helper on: Watchtrail then learns the real file names and
                     Play works.
                   </p>
+                ) : null}
+                {show.nextUrl && next ? (
+                  <MirrorMenu
+                    url={show.nextUrl}
+                    title={`${show.title} ${next.label}`}
+                    hosts={mirrorHosts}
+                    start={resumeStart(show.resumeSeconds)}
+                  />
                 ) : null}
                 {!show.nextUrl ? (
                   <div className="mt-4">

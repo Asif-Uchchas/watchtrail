@@ -951,3 +951,38 @@ export async function setMovieRating(userId: string, movieId: string, rating: nu
   const value = rating && rating >= 1 && rating <= 5 ? Math.round(rating) : null;
   await db.update(movies).set({ rating: value }).where(and(eq(movies.id, movieId), eq(movies.userId, userId)));
 }
+
+// ---------------------------------------------------------------- mirrors
+
+const siteOf = (host: string) => host.split(".").slice(-2).join(".");
+
+/**
+ * Other servers of the same site that appear in this user's own links (ftp9 and ftp12 on Circle, say).
+ * Offered as "try another server" when a file will not open on the current one.
+ */
+export async function otherHosts(userId: string, url: string): Promise<string[]> {
+  let current: URL;
+  try {
+    current = new URL(url);
+  } catch {
+    return [];
+  }
+  await ready();
+  const site = siteOf(current.hostname);
+  const [a, b, c] = await Promise.all([
+    db.select({ url: links.url }).from(links).where(eq(links.userId, userId)).limit(400),
+    db.select({ url: episodes.url }).from(episodes).where(eq(episodes.userId, userId)).limit(400),
+    db.select({ url: movies.url }).from(movies).where(eq(movies.userId, userId)).limit(200),
+  ]);
+  const hosts = new Set<string>();
+  for (const row of [...a, ...b, ...c]) {
+    if (!row.url) continue;
+    try {
+      const h = new URL(row.url).hostname;
+      if (h !== current.hostname && siteOf(h) === site) hosts.add(h);
+    } catch {
+      /* skip bad link */
+    }
+  }
+  return [...hosts].sort().slice(0, 6);
+}
